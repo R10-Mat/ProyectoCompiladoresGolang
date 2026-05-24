@@ -1,0 +1,29 @@
+program   stmt*
+
+stmt decl_stmt | assign_stmt | block_stmt | expr_stmt
+
+decl_stmt   type ID [ '=' expr ] ';' | 'auto' ID '=' expr ';'
+
+type        -> 'int' | 'float' | 'double' | 'char' | 'bool' 
+
+assign_stmt ID '=' expr ';' | ID op_assign expr ';' | ID('++'|'--') ';'
+
+op_assign   -> '+=' | '-=' | '*=' | '/=' | '%='
+
+block_stmt  -> '{' stmt* '}'
+
+expr_stmt   -> cexpr ';'
+
+cexpr       -> expr && expr | expr || expr
+
+expr        -> term == term | term <= term | term >= term | term != term | term < term | term > term
+
+term        -> factor + factor | factor - factor 
+
+factor        -> unary '*' unary | unary '/' unary | unary '%' unary | unary
+
+unary       -> '-' unary | '!' unary | primary
+
+primary     -> NUMBER | STRING | BOOL | ID | '(' expr ')'
+
+NUMBER      -> INT | FLOAT
