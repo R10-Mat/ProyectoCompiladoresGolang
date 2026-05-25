@@ -21,6 +21,11 @@ public:
     // Destructor
     ~Scanner();
 
+    // INTEGER-LITERAL AND FLOAT-LITERAL
+    Token* readNumberToken();
+
+    // STRING-LITERAL
+    Token* readStringToken();
 };
 
 // Ejecutar scanner

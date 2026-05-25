@@ -2,7 +2,7 @@
 #include <iostream>
 
 using namespace std;
-
+/*
 // Exp ────────────────────────────────────────────────
 
 Exp::~Exp() {}
@@ -143,4 +143,4 @@ ExpStmt::~ExpStmt() {
 // PrintStmt  ─────────────────────────────────────────
 
 PrintStmt::PrintStmt(Exp* e) : exp(e) {}
-PrintStmt::~PrintStmt() { delete exp; }
+PrintStmt::~PrintStmt() { delete exp; }*/

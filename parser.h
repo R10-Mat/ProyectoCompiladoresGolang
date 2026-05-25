@@ -1,6 +1,6 @@
 #ifndef PARSER_H       
 #define PARSER_H
-
+/*
 #include "scanner.h"    // Incluye la definición del escáner (provee tokens al parser)
 #include "ast.h"        // Incluye las definiciones para construir el Árbol de Sintaxis Abstracta (AST)
 
@@ -32,5 +32,5 @@ public:
     Programa* parseProgram();           
     Programa* parseP();                 
 };
-
+*/
 #endif // PARSER_H
