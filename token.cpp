@@ -13,68 +13,94 @@ Token::Token(Type type, const string& source, int first, int last, int line) : t
 
 static const char* typeName(Token::Type t) {
     switch (t) {
+        // identifiers
+        case Token::ID:                 return "ID";
+        // keywords
+        case Token::BREAK:              return "BREAK";
+        case Token::CASE:               return "CASE";
+        case Token::CHAN:               return "CHAN";
+        case Token::CONST:              return "CONST";
+        case Token::CONTINUE:           return "CONTINUE";
+        case Token::DEFAULT:            return "DEFAULT";
+        case Token::DEFER:              return "DEFER";
+        case Token::ELSE:               return "ELSE";
+        case Token::FALLTHROUGH:        return "FALLTHROUGH";
+        case Token::FOR:                return "FOR";
+        case Token::FUNC:               return "FUNC";
+        case Token::GO:                 return "GO";
+        case Token::GOTO:               return "GOTO";
+        case Token::IF:                 return "IF";
+        case Token::IMPORT:             return "IMPORT";
+        case Token::INTERFACE:          return "INTERFACE";
+        case Token::MAP:                return "MAP";
+        case Token::PACKAGE:            return "PACKAGE";
+        case Token::RANGE:              return "RANGE";
+        case Token::RETURN:             return "RETURN";
+        case Token::SELECT:             return "SELECT";
+        case Token::STRUCT:             return "STRUCT";
+        case Token::SWITCH:             return "SWITCH";
+        case Token::TYPE:               return "TYPE";
+        case Token::VAR:                return "VAR";
 
-        case Token::NUM:          return "NUM";
-        case Token::STRING_LIT:   return "STRING_LIT";
-        case Token::BOOL_LIT:     return "BOOL_LIT";
-        case Token::ID:           return "ID";
+        // Operators and Punctuation
+        case Token::PLUS:               return "PLUS";           // +
+        case Token::NEG:                return "NEG";            // -
+        case Token::MUL:                return "MUL";            // *
+        case Token::DIV:                return "DIV";            // /
+        case Token::MOD:                return "MOD";            // %
+        case Token::AND:                return "AND";            // &
+        case Token::OR:                 return "OR";             // |
+        case Token::CARET:              return "CARET";          // ^
+        case Token::LSHIFT:             return "LSHIFT";         // <<
+        case Token::RSHIFT:             return "RSHIFT";         // >>
+        case Token::BITCLEAR:           return "BITCLEAR";       // &^
+        case Token::PLUSASSIGN:         return "PLUSASSIGN";     // +=
+        case Token::NEGASSIGN:          return "NEGASSIGN";      // -=
+        case Token::MULASSIGN:          return "MULASSIGN";      // *=
+        case Token::DIVASSIGN:          return "DIVASSIGN";      // /=
+        case Token::MODASSIGN:          return "MODASSIGN";      // %=
+        case Token::ANDASSIGN:          return "ANDASSIGN";      // &=
+        case Token::ORASSIGN:           return "ORASSIGN";       // |=
+        case Token::CARETASSIGN:        return "CARETASSIGN";    // ^=
+        case Token::LSHIFTASSIGN:       return "LSHIFTASSIGN";   // <<=
+        case Token::RSHIFTASSIGN:       return "RSHIFTASSIGN";   // >>=
+        case Token::BITCLEARASSIGN:     return "BITCLEARASSIGN"; // &^=
+        case Token::AND_LOGICAL:        return "AND_LOGICAL";    // &&
+        case Token::OR_LOGICAL:         return "OR_LOGICAL";     // ||
+        case Token::ARROW:              return "ARROW";          // <-
+        case Token::INC:                return "INC";            // ++
+        case Token::DEC:                return "DEC";            // --
+        case Token::EQUAL:              return "EQUAL";          // ==
+        case Token::LES:                return "LES";            // <
+        case Token::GER:                return "GER";            // >
+        case Token::ASSIGN:             return "ASSIGN";         // =
+        case Token::NOT:                return "NOT";            // !
+        case Token::DISTINCT:           return "DISTINCT";       // !=
+        case Token::LEQ:                return "LEQ";            // <=
+        case Token::GEQ:                return "GEQ";            // >=
+        case Token::DEC_ASSIGN:         return "DEC_ASSIGN";     // :=
+        case Token::LPAREN:             return "LPAREN";         // (
+        case Token::RPAREN:             return "RPAREN";         // )
+        case Token::LCORCHETE:          return "LCORCHETE";      // [
+        case Token::RCORCHETE:          return "RCORCHETE";      // ]
+        case Token::LLLAVE:             return "LLLAVE";         // {
+        case Token::RLLAVE:             return "RLLAVE";         // }
+        case Token::COMMA:              return "COMMA";          // ,
+        case Token::PCOMMA:             return "PCOMMA";         // ;
+        case Token::PUNTO:              return "PUNTO";          // .
+        case Token::DOS_PUNTOS:         return "DOS_PUNTOS";     // :
 
-        case Token::INT:          return "INT";
-        case Token::FLOAT:        return "FLOAT";
-        case Token::DOUBLE:       return "DOUBLE";
-        case Token::CHAR:         return "CHAR";
-        case Token::BOOL:         return "BOOL";
-        case Token::AUTO:         return "AUTO";
-        case Token::VOID:         return "VOID";
+        // Literals
+        case Token::INT_LIT:            return "INT_LIT";
+        case Token::FLOAT_LIT:          return "FLOAT_LIT";
+        case Token::IMAGINARY_LIT:      return "IMAGINARY_LIT";
+        case Token::RUNE_LIT:           return "RUNE_LIT";
+        case Token::STRING_LIT:         return "STRING_LIT";
 
-        case Token::PLUS:         return "PLUS";
-        case Token::MINUS:        return "MINUS";
-        case Token::MUL:          return "MUL";
-        case Token::DIV:          return "DIV";
-        case Token::MOD:          return "MOD";
-        case Token::POW:          return "POW";
-
-        case Token::ASSIGN:       return "ASSIGN";
-        case Token::PLUS_ASSIGN:  return "PLUS_ASSIGN";
-        case Token::MINUS_ASSIGN: return "MINUS_ASSIGN";
-        case Token::MUL_ASSIGN:   return "MUL_ASSIGN";
-        case Token::DIV_ASSIGN:   return "DIV_ASSIGN";
-        case Token::MOD_ASSIGN:   return "MOD_ASSIGN";
-
-        case Token::EQ:           return "EQ";
-        case Token::NEQ:          return "NEQ";
-        case Token::LT:           return "LT";
-        case Token::GT:           return "GT";
-        case Token::LTE:          return "LTE";
-        case Token::GTE:          return "GTE";
-
-        case Token::AND:          return "AND";
-        case Token::OR:           return "OR";
-        case Token::NOT:          return "NOT";
-
-        case Token::INC:          return "INC";
-        case Token::DEC:          return "DEC";
-        
-        case Token::LPAREN:       return "LPAREN";
-        case Token::RPAREN:       return "RPAREN";
-        case Token::LBRACE:       return "LBRACE";
-        case Token::RBRACE:       return "RBRACE";
-        case Token::LBRACKET:     return "LBRACKET";
-        case Token::RBRACKET:     return "RBRACKET";
-        case Token::SEMICOL:      return "SEMICOL";
-        case Token::COMMA:        return "COMMA";
-        case Token::DOT:          return "DOT";
-        case Token::COLON:        return "COLON";
-        case Token::IF:           return "IF";
-        case Token::ELSE:         return "ELSE";
-        case Token::WHILE:        return "WHILE";
-        case Token::FOR:          return "FOR";
-        case Token::RETURN:       return "RETURN";
-        case Token::PRINT:        return "PRINT";
-        // Especiales
-        case Token::ERR:          return "ERR";
-        case Token::END:          return "END";
-        default:                  return "UNKNOWN";
+        // System / Errors
+        case Token::ERROR:              return "ERROR";
+        case Token::END:                return "EOF";
+        default:                        return "UNKNOWN";
     }
 }
 

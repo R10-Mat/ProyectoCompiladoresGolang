@@ -8,71 +8,92 @@ using namespace std;
 
 class Token {
 public:
+    // hay 4 clases de tokens
     enum Type {
-        NUM,         // numero
-        STRING_LIT,  // string
-        BOOL_LIT,    // bool
+        // identifiers
+        ID,         // id
+        // keywords
+        BREAK,
+        CASE,
+        CHAN,
+        CONST,
+        CONTINUE,
+        DEFAULT,
+        DEFER,
+        ELSE,
+        FALLTHROUGH,
+        FOR,
+        FUNC,
+        GO,
+        GOTO,
+        IF,
+        IMPORT,
+        INTERFACE,
+        MAP,
+        PACKAGE,
+        RANGE,
+        RETURN,
+        SELECT,
+        STRUCT,
+        SWITCH,
+        TYPE,
+        VAR,
+        // operators and punctuation
+        PLUS,           // +
+        NEG,            // -
+        MUL,            // *
+        DIV,            // /
+        MOD,            // %
+        AND,            // &
+        OR,             // |
+        CARET,          // ^
+        LSHIFT,         // <<
+        RSHIFT,         // >>
+        BITCLEAR,       // &^
+        PLUSASSIGN,     // +=
+        NEGASSIGN,      // -=
+        MULASSIGN,      // *=
+        DIVASSIGN,      // /=
+        MODASSIGN,      // %=
+        ANDASSIGN,      // &=
+        ORASSIGN,       // |=
+        CARETASSIGN,    // ^=
+        LSHIFTASSIGN,   // <<=
+        RSHIFTASSIGN,   // >>=
+        BITCLEARASSIGN, // &^=
+        AND_LOGICAL,    // &&
+        OR_LOGICAL,     // ||
+        ARROW,           // <- no se como se llama
+        INC,            // ++
+        DEC,            // --
+        EQUAL,          // ==
+        LES,            // <
+        GER,            // >
+        ASSIGN,         // =
+        NOT,            // !
+        DISTINCT,       // !=
+        LEQ,            // <=
+        GEQ,            // >=
+        DEC_ASSIGN,     // :=
+        LPAREN,         // (
+        RPAREN,         // )
+        LCORCHETE,      // [
+        RCORCHETE,      // ]
+        LLLAVE,         // {
+        RLLAVE,         // }
+        COMMA,          // ,
+        PCOMMA,         // ;
+        PUNTO,          // .
+        DOS_PUNTOS,     // :
+        // literals
+        INT_LIT,
+        FLOAT_LIT,
+        IMAGINARY_LIT,
+        RUNE_LIT,        // rune literal xd?
+        STRING_LIT,
 
-        ID,          // id
-
-        INT,         // int
-        FLOAT,       // float
-        DOUBLE,      // double
-        CHAR,        // char
-        BOOL,        // bool
-        AUTO,        // auto
-        VOID,        // void 
-
-        PLUS,        // +
-        MINUS,       // -
-        MUL,         // *
-        DIV,         // /
-        MOD,         // %
-        POW,         // ** 
-
-        
-        ASSIGN,      // =
-        PLUS_ASSIGN, // +=
-        MINUS_ASSIGN,// -=
-        MUL_ASSIGN,  // *=
-        DIV_ASSIGN,  // /=
-        MOD_ASSIGN,  // %=
-
-        
-        EQ,          // ==
-        NEQ,         // !=
-        LT,          // <
-        GT,          // >
-        LTE,         // <=
-        GTE,         // >=
-
-        AND,         // &&
-        OR,          // ||
-        NOT,         // !
-
-        INC,         // ++
-        DEC,         // --
-
-        LPAREN,      // (
-        RPAREN,      // )
-        LBRACE,      // {
-        RBRACE,      // }
-        LBRACKET,    // [
-        RBRACKET,    // ]
-        SEMICOL,     // ;
-        COMMA,       // ,
-        DOT,         // .
-        COLON,       // :
-
-        IF,          // if
-        ELSE,        // else
-        WHILE,       // while
-        FOR,         // for
-        RETURN,      // return
-        PRINT,       // print
-
-        ERR,         // token inválido
-        END          // fin de entrada
+        ERROR,
+        END
     };
 
     Type type;

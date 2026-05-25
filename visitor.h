@@ -4,7 +4,7 @@
 #include "token.h"
 #include <list>
 #include <unordered_map>
-
+/*
 class BinaryExp;
 class UnaryExp;
 class IntExp;
@@ -73,5 +73,5 @@ public:
     void visit(Programa* program) override;
     void interprete(Programa* program);
 };
-
+*/
 #endif // VISITOR_H

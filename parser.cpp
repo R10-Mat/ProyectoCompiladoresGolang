@@ -6,7 +6,7 @@
 #include "parser.h"
 
 using namespace std;
-
+/*
 Parser::Parser(Scanner* sc) : scanner(sc) {
     previous = nullptr;
     current = scanner->nextToken();
@@ -305,3 +305,4 @@ Exp* Parser::parsePrimary() {
 
     throw runtime_error("Error sintáctico línea " + to_string(current->line) + ": expresión inválida '" + current->text + "'");
 }
+*/

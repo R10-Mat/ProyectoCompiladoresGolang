@@ -5,7 +5,7 @@
 #include "visitor.h"
 #include "token.h"
 using namespace std;
-
+/*
 void BinaryExp::accept(Visitor* visitor) { visitor->visit(this); }
 void UnaryExp::accept(Visitor* visitor)  { visitor->visit(this); }
 void IntExp::accept(Visitor* visitor)    { visitor->visit(this); }
@@ -285,4 +285,4 @@ void EVALVisitor::visit(IdExp* exp) {
     else if (memString.count(exp->name)) memString["__tmp"] = memString[exp->name];
     else
         throw runtime_error("Variable no declarada: " + exp->name);
-}
+}*/
