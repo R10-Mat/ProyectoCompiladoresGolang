@@ -88,6 +88,7 @@ Token* Scanner::nextToken() {
     }
     else {
         switch (c) {
+            case '~': token = new Token(Token::VIRGULA,    c, line); break;
             case '+':
                 if (current + 1  < input.length() && input[current+1] == '+' ) {
                     current++;
@@ -207,7 +208,13 @@ Token* Scanner::nextToken() {
             case ']': token = new Token(Token::RCORCHETE, c, line); break;
             case ';': token = new Token(Token::PCOMMA,    c, line); break;
             case ',': token = new Token(Token::COMMA,     c, line); break;
-            case '.': token = new Token(Token::PUNTO,     c, line); break;
+            case '.':
+                if (current + 1 < input.length() && input[current+1] == '.' &&
+                    current + 2 < input.length() && input[current+2] == '.') {
+                    current+=2;
+                    token = new Token(Token::TRES_PUNTOS,input,first,current+2, line);
+                } else token = new Token(Token::PUNTO,c, line);
+                break;
             default:  token = new Token(Token::ERROR,     c, line); break;
         }
         current++;

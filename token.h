@@ -63,7 +63,7 @@ public:
         BITCLEARASSIGN, // &^=
         AND_LOGICAL,    // &&
         OR_LOGICAL,     // ||
-        ARROW,           // <- no se como se llama
+        ARROW,           // <-
         INC,            // ++
         DEC,            // --
         EQUAL,          // ==
@@ -71,6 +71,7 @@ public:
         GER,            // >
         ASSIGN,         // =
         NOT,            // !
+        VIRGULA,        // ~
         DISTINCT,       // !=
         LEQ,            // <=
         GEQ,            // >=
@@ -85,11 +86,12 @@ public:
         PCOMMA,         // ;
         PUNTO,          // .
         DOS_PUNTOS,     // :
+        TRES_PUNTOS,    // ...
         // literals
         INT_LIT,
         FLOAT_LIT,
         IMAGINARY_LIT,
-        RUNE_LIT,        // rune literal xd?
+        RUNE_LIT,
         STRING_LIT,
 
         ERROR,

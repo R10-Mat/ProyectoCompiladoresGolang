@@ -75,6 +75,7 @@ static const char* typeName(Token::Type t) {
         case Token::GER:                return "GER";            // >
         case Token::ASSIGN:             return "ASSIGN";         // =
         case Token::NOT:                return "NOT";            // !
+        case Token::VIRGULA:            return "VIRGULA";        // ~
         case Token::DISTINCT:           return "DISTINCT";       // !=
         case Token::LEQ:                return "LEQ";            // <=
         case Token::GEQ:                return "GEQ";            // >=
@@ -89,6 +90,7 @@ static const char* typeName(Token::Type t) {
         case Token::PCOMMA:             return "PCOMMA";         // ;
         case Token::PUNTO:              return "PUNTO";          // .
         case Token::DOS_PUNTOS:         return "DOS_PUNTOS";     // :
+        case Token::TRES_PUNTOS:        return "TRES_PUNTOS";    // ...
 
         // Literals
         case Token::INT_LIT:            return "INT_LIT";
@@ -99,8 +101,8 @@ static const char* typeName(Token::Type t) {
 
         // System / Errors
         case Token::ERROR:              return "ERROR";
-        case Token::END:                return "EOF";
-        default:                        return "UNKNOWN";
+        case Token::END:                return "END";
+        default:                        return "ERROR";
     }
 }
 
