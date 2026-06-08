@@ -4,8 +4,16 @@
 #include <string>
 #include <list>
 #include <ostream>
+#include <vector>
+
+#include "ast.h"
+#include "ast.h"
+#include "ast.h"
+#include "ast.h"
 #include "token.h"
 
+class ForClause;
+class ExpCaseClause;
 class TypeTerm;
 class InterfaceElem;
 class ParameterDecl;
@@ -29,11 +37,27 @@ enum BinaryOp {
     AND_OP, OR_OP
 };
 
+enum AssignOp {
+    PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN, DIV_ASSIGN
+};
+
 enum UnaryOp {
     NEG_OP,   
     NOT_OP,   
     INC_OP,   
     DEC_OP    
+};
+
+// ----------------------------------------------------------------------
+// Parte Rayhan: global y types
+// ----------------------------------------------------------------------
+
+class Programa {
+public:
+    Block* bloque;
+    void accept(Visitor* visitor);
+    ~Programa();
+    Programa();
 };
 
 // -------------- Types -----------------------
@@ -209,38 +233,156 @@ public:
     ~MapType() override;
 };
 
-
-// ----------------------------------------------
-
-
-
-class Programa {
+class ExpList {
 public:
-    Block* bloque;
-    void accept(Visitor* visitor);
-    ~Programa();
-    Programa();
+    vector<Exp*> expressions;
+
 };
 
+// ----------------------------------------------------------------------
+// Parte Bruno: Blocks y Statements
+// ----------------------------------------------------------------------
 class Block {
 public:
     StmtList* lista_statements;
     void accept(Visitor* visitor);
-    ~Block();
     Block();
+    ~Block();
 };
 
 class StmtList {
 public:
     list<Stmt*> statements;
     void accept(Visitor* visitor);
-    ~StmtList();
     StmtList();
+    ~StmtList();
 };
 
-// Statements no implementados
+class Stmt{
+public:
+    virtual void accept(Visitor* visitor) = 0;
+    virtual ~Stmt() = 0;
+};
 
-// ----------------------------------------------------------
+class DeclarationStmt: public Stmt {
+public:
+    Declaration* declaration;
+    void accept(Visitor *visitor) override;
+    DeclarationStmt();
+    ~DeclarationStmt();
+};
+
+
+class BlockStmt : public Stmt {
+public:
+    Block* block;
+    void accept(Visitor *visitor) override;
+    BlockStmt();
+    ~BlockStmt();
+};
+
+class ExpresionStmt : public Stmt {
+public:
+    Exp* expresion;
+    void accept(Visitor *visitor) override;
+    ExpresionStmt();
+    ~ExpresionStmt();
+};
+
+class IncDecStmt : public Stmt {
+public:
+    Exp* expresion;
+    UnaryOp op;
+    void accept(Visitor *visitor) override;
+    IncDecStmt();
+    ~IncDecStmt();
+};
+
+class Assigment : public Stmt {
+public:
+    ExpList* expresion_list_id;
+    ExpList* expresion_list_values;
+    AssignOp op;
+    void accept(Visitor *visitor) override;
+    Assigment();
+    ~Assigment();
+};
+
+class ReturnStmt : public Stmt {
+public:
+    ExpList* expresion_list;
+    void accept(Visitor *visitor) override;
+    ReturnStmt();
+    ~ReturnStmt();
+};
+
+class BreakStmt: public Stmt {
+public:
+    void accept(Visitor *visitor) override;
+    BreakStmt();
+    ~BreakStmt();
+};
+
+class ContinueStmt: public Stmt {
+public:
+    void accept(Visitor *visitor) override;
+    ContinueStmt();
+    ~ContinueStmt();
+};
+
+class IfStmt: public Stmt {
+public:
+    Exp* expresion;
+    Block* cuerpo_if;
+    Block* cuerpo_else;
+    IfStmt* if_anidado;
+    void accept(Visitor *visitor) override;
+    IfStmt();
+    ~IfStmt();
+};
+
+class SwitchStmt: public Stmt {
+public:
+    Exp* expresion;
+    list<ExpCaseClause*> exp_case_clause;
+    void accept(Visitor *visitor) override;
+    SwitchStmt();
+    ~SwitchStmt();
+};
+
+class ExpCaseClause {
+public:
+    ExpList* expresion_list;
+    StmtList* statement_list;
+    void accept(Visitor *visitor);
+    ExpCaseClause();
+    ~ExpCaseClause();
+};
+
+class ForStmt: public Stmt {
+public:
+    Exp* expresion;
+    ForClause* for_clause;
+    Block* block;
+    void accept(Visitor *visitor) override;
+    ForStmt();
+    ~ForStmt();
+};
+
+class ForClause {
+public:
+    Assigment* asignacion1;
+    Exp* expresion;
+    Assigment* asignacion2;
+    IncDecStmt* inc_dec_stmt;
+    void accept(Visitor *visitor);
+    ForClause();
+    ~ForClause();
+};
+
+// ----------------------------------------------------------------------
+// Parte Nico: Expresions
+// ----------------------------------------------------------------------
 class Exp {
 public:
     virtual void accept(Visitor* visitor) = 0;
@@ -293,65 +435,6 @@ public:
     QualifiedIdent();
     ~QualifiedIdent();
 };
-
-// -------------------------------------------------------------------
-
-class Decl {
-    virtual void accept(Visitor* visitor) = 0;
-    virtual ~Decl() = default;
-};
-
-// -----------------------------------------------------------------------
-// Constdeclaration
-class ConstDecl : public Decl{
-public:
-    list<ConstDecl*> specs;
-    void accept(Visitor *visitor) override;
-    ConstDecl();
-    ~ConstDecl();
-};
-
-class ConstSpec {
-public:
-    list<Exp*> lista_id;
-    string tipo;
-    list<Exp*> lista_expresiones;
-    ConstSpec();
-    ~ConstSpec();
-};
-// ------------------------------------------------------------------------
-class TypeDecl : public Decl {
-public:
-
-    void accept(Visitor *visitor) override;
-    TypeDecl();
-    ~TypeDecl();
-};
-
-class VarDec: public Decl {
-public:
-    // cosos del var declaration
-    void accept(Visitor *visitor) override;
-    VarDec();
-    ~VarDec();
-};
-
-class FunctionDec: public Decl {
-public:
-    // cosos del func declaration
-    void accept(Visitor *visitor) override;
-    FunctionDec();
-    ~FunctionDec();
-};
-
-class MethodDec: public Decl {
-public:
-    // cosos del methodDec
-    void accept(Visitor *visitor) override;
-    MethodDec();
-    ~MethodDec();
-};
-
 class FloatExp : public Exp {
 public:
     float value;
@@ -359,7 +442,6 @@ public:
     FloatExp(float v);
     ~FloatExp();
 };
-
 
 class BoolExp : public Exp {
 public:
@@ -378,68 +460,6 @@ public:
     ~StringExp();
 };
 
-
-
-class Stmt{
-public:
-    virtual void accept(Visitor* visitor) = 0;
-    virtual ~Stmt() = 0;
-};
-
-class DeclStmt : public Stmt {
-public:
-    string name;
-    Token::Type type;  
-    Exp* init;  
-    void accept(Visitor* visitor) override;
-    DeclStmt(string _name, Token::Type _type, Exp* _init);
-    ~DeclStmt();
-       
-};
-
-class AutoDeclStmt : public Stmt {
-public:
-    string name;
-    Exp* init; 
-    void accept(Visitor* visitor) override;
-    AutoDeclStmt(string _name, Exp* _init);
-    ~AutoDeclStmt();        
-};
-
-class AssignStmt : public Stmt {
-public:
-    string name;
-    Token::Type op;   
-    Exp* exp;
-    void accept(Visitor* visitor) override;
-    AssignStmt(string _name, Token::Type _op, Exp* _exp);
-    ~AssignStmt();
-};
-
-class BlockStmt : public Stmt {
-public:
-    list<Stmt*> stmts;
-    void accept(Visitor* visitor) override;
-    BlockStmt(list<Stmt*> stmts_);
-    ~BlockStmt();
-};
-
-class ExpStmt : public Stmt {
-public:
-    Exp* exp;
-    void accept(Visitor* visitor) override;
-    ExpStmt(Exp* _exp);
-    ~ExpStmt();
-};
-
-
-class PrintStmt : public Stmt {
-public:
-    Exp* exp;
-    void accept(Visitor* visitor) override;
-    PrintStmt(Exp* e);
-    ~PrintStmt();
-};
 
 
 #endif // AST_H

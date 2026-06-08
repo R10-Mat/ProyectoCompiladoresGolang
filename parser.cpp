@@ -52,7 +52,10 @@ bool Parser::isAtEnd() {
 // Reglas gramaticales
 // =============================
 
-// change this
+
+// ----------------------------------------------------------------------
+// Parte Rayhan: global y types
+// ----------------------------------------------------------------------
 Programa* Parser::parseProgram() {
     Programa* prog = new Programa();
     return prog;
@@ -380,10 +383,15 @@ ChannelType *Parser::parseChannelType() {
     }
 }
 
+ExpList *Parser::parseExpList() {
+
+}
+::
 
 
-// -------------------------------------------------------
-/*
+// ----------------------------------------------------------------------
+// Parte Bruno: Blocks y Statements
+// ----------------------------------------------------------------------
 Block *Parser::parseBlock() {
     if (check(Token::LLLAVE)) {
         match(Token::LLLAVE);
@@ -400,87 +408,204 @@ Block *Parser::parseBlock() {
 StmtList *Parser::parseStmtList() {
     auto lista_statements = new StmtList();
     lista_statements->statements.push_back(parseStmt());
-    while (match(Token::PCOMMA)) {  // error personalizado falta??
+    while (match(Token::PCOMMA)) {
         lista_statements->statements.push_back(parseStmt());
     }
     return lista_statements;
 }
 
-
-Decl *Parser::parseDecl() {
-    if (check(Token::CONST)) {
-        match(Token::CONST);
-
-    } else if (check(Token::TYPE)) {
-        match(Token::TYPE);
-        // typedeclaration
-    } else if (check(Token::VAR)) {
-        match(Token::VAR);
-        // vardeclaration
+Stmt *Parser::parseStmt() {
+    if (check(Token::VAR) || check(Token::CONST) || check(Token::TYPE)) {
+        return parseDeclarationStmt();
     }
-    throw runtime_error("Declaración incorrecta");
+    if (check(Token::LLLAVE)) {
+        return parseBlockStmt();
+    }
+    if (check(Token::RETURN)) {
+        return parseReturnStmt();
+    }
+    if (check(Token::BREAK)) {
+        return parseBreakStmt();
+    }
+    if (check(Token::CONTINUE)) {
+        return parseReturnStmt();
+    }
+    if (check(Token::IF)) {
+        return parseIfStmt();
+    }
+    if (check(Token::FOR)) {
+        return parseForStmt();
+    }
+    if (check(Token::SWITCH)) {
+        return parseSwitchStmt();
+    }
+
+    auto expresion_list = parseExpList();
+    if (check(Token::INC) || check(Token::DEC)) {
+        return parseIncDecStmt(expresion_list->expressions[0]);
+    }
+
+    if (check(Token::PLUSASSIGN) || check(Token::NEGASSIGN) ||
+        check(Token::MULASSIGN)  || check(Token::DIVASSIGN)) {
+        return parseAssigment(expresion_list);
+    }
+
+    return parseExpresionStmt(expresion_list->expressions[0]);
+
 }
 
-ConstDecl *Parser::parseConstDecl() {
-    auto constdecl = new ConstDecl();
-    if (check(Token::LPAREN)) {
-        match(Token::LPAREN);
-        while (!isAtEnd() && !check(Token::RPAREN)) {
-            auto spec = parseConstSpec();
-            constdecl->specs.push_back(spec);
+DeclarationStmt *Parser::parseDeclarationStmt() {
+    auto declaracion = new DeclarationStmt();
+    declaracion->declaration = parseDeclaration();
+    return declaracion;
+}
 
-            if (check(Token::PCOMMA)) {
-                match(Token::PCOMMA);
-            }
-        }
-        if (check(Token::RPAREN)) {
-            match(Token::RPAREN);
-            return constdecl;
-        } throw runtime_error ("Cerrar el parentesis");
+BlockStmt *Parser::parseBlockStmt() {
+    auto bloque = new BlockStmt();
+    bloque->block = parseBlock();
+    return bloque;
+}
+
+
+ExpresionStmt *Parser::parseExpresionStmt(Exp* e) {
+    auto expresion_stmt = new ExpresionStmt();
+    expresion_stmt->expresion = e;
+    return expresion_stmt;
+}
+
+IncDecStmt *Parser::parseIncDecStmt(Exp* e) {
+    auto inc_dec_stmt = new IncDecStmt();
+    inc_dec_stmt->expresion = e;
+    UnaryOp ops;
+    if (check(Token::INC)) {
+        match(Token::INC);
+        ops = INC_OP;
     } else {
-        auto spec = parseConstSpec();
-        constdecl->specs.push_back(spec);
-        return constdecl;
+        match(Token::DEC);
+        ops = DEC_OP;
     }
+    inc_dec_stmt->op = ops;
+    return inc_dec_stmt;
 }
 
-ConstSpec *Parser::parseConstSpec() {
-    auto spec = new ConstSpec();
-    spec->lista_id = parseIndetifierList();
-    if (!check(Token::PCOMMA) && !check(Token::RPAREN)) {
-        if (!check(Token::ASSIGN)) {
-            spec->tipo = parseType();
+
+Assigment *Parser::parseAssigment(ExpList* el) {
+    auto assignment = new Assigment();
+    assignment->expresion_list_id = el;
+    AssignOp ops;
+    if (check(Token::PLUSASSIGN)) {
+        match(Token::PLUSASSIGN);
+        ops = PLUS_ASSIGN;
+    } else if (check(Token::NEGASSIGN)) {
+        match(Token::NEGASSIGN);
+        ops = NEG_ASSIGN;
+    } else if (check(Token::MULASSIGN)) {
+        match(Token::MULASSIGN);
+        ops = MUL_ASSIGN;
+    } else {
+        match(Token::DIVASSIGN);
+        ops = DIV_ASSIGN;
+    }
+    assignment->op = ops;
+    assignment->expresion_list_values = parseExpList();
+    return assignment;
+}
+
+ReturnStmt *Parser::parseReturnStmt() {
+    match(Token::RETURN);
+    auto return_stmt = new ReturnStmt();
+    if (!check(Token::PCOMMA) && !check(Token::RLLAVE)) {
+        return_stmt->expresion_list = parseExpList();
+    } else {
+        return_stmt->expresion_list = nullptr;
+    }
+    return return_stmt;
+}
+
+BreakStmt *Parser::parseBreakStmt() {
+    match(Token::BREAK);
+    return new BreakStmt();
+}
+
+ContinueStmt *Parser::parseContinueStmt() {
+    match(Token::CONTINUE);
+    return new ContinueStmt();
+}
+
+IfStmt *Parser::parseIfStmt() {
+    match(Token::IF);
+    auto if_stmt = new IfStmt();
+    if_stmt->expresion = parseExp();
+    if_stmt->cuerpo_if = parseBlock();
+    if (check(Token::ELSE)) {
+        match(Token::ELSE);
+        if (check(Token::LLLAVE)) {
+            if_stmt->cuerpo_else = parseBlock();
+            if_stmt->cuerpo_if = nullptr;
+        } else {
+            if_stmt->cuerpo_else = nullptr;
+            if_stmt->if_anidado = parseIfStmt();
         }
-
-        if (check(Token::ASSIGN)) {
-            match(Token::ASSIGN);
-            spec->lista_expresiones = parseExpresionList();
-        } throw runtime_error("Se esperaba '=' en la declarion de la constante");
+    } else {
+        if_stmt->cuerpo_else = nullptr;
+        if_stmt->if_anidado  = nullptr;
     }
-    return spec;
-}
-/*
-
-// helpers to delete:
-/*
-Exp *Parser::parseQualifiedIdent() {
-    auto qualifiedident = new QualifiedIdent();
-    qualifiedident->prefijo = parsePackageName();
-    if (check(Token::PUNTO)) {
-        match(Token::PUNTO);
-        if (check(Token::ID)) {
-            match(Token::ID);
-            qualifiedident->subfijo = previous->text;
-        } throw runtime_error("Falta un id");
-    } throw runtime_error("Falta el punto");
+    return if_stmt;
 }
 
-Exp *Parser::parsePackageName() {
-    auto id = new IdExp();
-    if (check(Token::ID)) {
-        match(Token::ID);
-        id->name = previous->text;
-        return id;
-    } throw runtime_error("Esto no es un Id");
+SwitchStmt *Parser::parseSwitchStmt() {
+    match(Token::SWITCH);
+    auto switch_stmt =  new SwitchStmt();
+    if (!check(Token::LLLAVE)) {
+        switch_stmt->expresion = parseExp();
+    } else {
+        switch_stmt->expresion = nullptr;
+    }
+    match(Token::LLLAVE);
+    while (!check(Token::RLLAVE)) {
+        switch_stmt->exp_case_clause.push_back(parseExpCaseClause());
+    }
+    match(Token::RLLAVE);
+    return switch_stmt;
 }
-*/
+
+ExpCaseClause *Parser::parseExpCaseClause() {
+    auto exp_case_clause = new ExpCaseClause();
+    if (check(Token::CASE)) {
+        match(Token::CASE);
+        exp_case_clause->expresion_list = parseExpList();
+        match(Token::DOS_PUNTOS);
+        exp_case_clause->statement_list = parseStmtList();
+    } else {
+        match(Token::DEFAULT);
+        exp_case_clause->expresion_list = nullptr;
+        exp_case_clause->statement_list = parseStmtList();
+    }
+    return exp_case_clause;
+}
+
+ForStmt *Parser::parseForStmt() {
+    match(Token::FOR);
+    auto for_stmt = new ForStmt();
+    if (check(Token::LLLAVE)) {
+        for_stmt->block = parseBlock();
+        return for_stmt;
+    }
+
+    // falta el or ese
+
+    for_stmt->block = parseBlock();
+    return for_stmt;
+}
+
+ForClause *Parser::parseForClause() {
+    // falta coso
+}
+
+// ----------------------------------------------------------------------
+// Parte Nico: Expresion
+// ----------------------------------------------------------------------
+
+Exp *Parser::parseExp() {
+
+}

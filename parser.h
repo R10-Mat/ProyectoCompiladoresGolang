@@ -14,6 +14,9 @@ private:
     bool isAtEnd();                         // Comprueba si ya se llegó al final de la entrada
 
 
+    // ----------------------------------------------------------------------
+    // Parte Rayhan: global y types
+    // ----------------------------------------------------------------------
     Type* parseType();
         TypeName_TypeArgs *parseTypeName_TypeArgs();
             TypeName* parseTypeName();
@@ -33,21 +36,32 @@ private:
             ChannelType* parseChannelType();
             MapType* parseMapType();
 
+    ExpList* parseExpList();
+    // ----------------------------------------------------------------------
+    // Parte Bruno: Blocks y Statements
+    // ----------------------------------------------------------------------
+    Block* parseBlock();
+    StmtList* parseStmtList();
+    Stmt* parseStmt();
+        DeclarationStmt* parseDeclarationStmt();
+        BlockStmt* parseBlockStmt();
+        ExpresionStmt* parseExpresionStmt(Exp* e);
+        IncDecStmt* parseIncDecStmt(Exp* e);
+        Assigment* parseAssigment(ExpList* el);
+        ReturnStmt* parseReturnStmt();
+        BreakStmt* parseBreakStmt();
+        ContinueStmt* parseContinueStmt();
+        IfStmt* parseIfStmt();
+        SwitchStmt* parseSwitchStmt();
+            ExpCaseClause* parseExpCaseClause();
+        ForStmt* parseForStmt();
+            ForClause* parseForClause();
+    // ----------------------------------------------------------------------
+    // Parte Nico: Expresions
+    // ----------------------------------------------------------------------
+    Exp* parseExp();
 
-    //Exp* parseQualifiedIdent(); // opcionales?
-    //Exp* parsePackageName(); // opcionales?
 
-    //Block* parseBlock();
-    //StmtList* parseStmtList();
-    //Stmt* parseStmt();
-
-    //Decl* parseDecl();
-    //Decl* parseTopLevelDecl();
-    //ConstDecl* parseConstDecl();
-    //ConstSpec* parseConstSpec();
-
-    //list<IdExp*> parseIndetifierList();
-    //list<Exp*> parseExpresionList();
 public:
     Parser(Scanner* scanner);           
     Programa* parseProgram();           
