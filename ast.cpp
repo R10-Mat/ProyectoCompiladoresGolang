@@ -2,7 +2,6 @@
 #include <iostream>
 
 using namespace std;
-/*
 // Exp ────────────────────────────────────────────────
 
 Exp::~Exp() {}
@@ -79,51 +78,31 @@ StringExp::StringExp(string v) : value(v) {}
 StringExp::~StringExp() {}
 
 // IdExp ──────────────────────────────────────────────
-
+/*
 IdExp::IdExp(string n) : name(n) {}
 
 IdExp::~IdExp() {}
-
+*/
 // Programa ───────────────────────────────────────────
 
 Programa::Programa() {}
 
-Programa::~Programa() {
-    for (Stmt* s : slist){
-        delete s;
-    }
-}
+Programa::~Programa() {}
 
 // Stmt ───────────────────────────────────────────────
 
-Stmt::~Stmt() {}
 
 // DeclStmt ───────────────────────────────────────────
 
-DeclStmt::DeclStmt(string _name,Token::Type _type, Exp* _init) :  name(_name), type(_type), init(_init) {}
 
-DeclStmt::~DeclStmt() {
-    delete init;
-}
 
 // AutoDeclStmt ───────────────────────────────────────
 
-AutoDeclStmt::AutoDeclStmt(string _name, Exp* _init) : name(_name), init(_init) {}
-
-AutoDeclStmt::~AutoDeclStmt() {
-    delete init;
-}
-
 // AssignStmt ─────────────────────────────────────────
 
-AssignStmt::AssignStmt(string _name, Token::Type _op, Exp* _exp) : name(_name), op(_op), exp(_exp) {}
-
-AssignStmt::~AssignStmt() {
-    delete exp;
-}
 
 // BlockStmt ──────────────────────────────────────────
-
+/*
 BlockStmt::BlockStmt(list<Stmt*> _stmts) : stmts(_stmts) {}
 
 BlockStmt::~BlockStmt() {
@@ -131,16 +110,18 @@ BlockStmt::~BlockStmt() {
         delete s;
     }
 }
+*/
 
 // ExpStmt ────────────────────────────────────────────
-
+/*
 ExpStmt::ExpStmt(Exp* _exp) : exp(_exp) {}
 
 ExpStmt::~ExpStmt() {
     delete exp;
 }
+*/
 
 // PrintStmt  ─────────────────────────────────────────
-
+/*
 PrintStmt::PrintStmt(Exp* e) : exp(e) {}
 PrintStmt::~PrintStmt() { delete exp; }*/

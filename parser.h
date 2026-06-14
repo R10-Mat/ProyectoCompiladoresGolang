@@ -17,24 +17,15 @@ private:
     // ----------------------------------------------------------------------
     // Parte Rayhan: global y types
     // ----------------------------------------------------------------------
-    Type* parseType();
-        TypeName_TypeArgs *parseTypeName_TypeArgs();
-            TypeName* parseTypeName();
-            TypeArgs* parseTypeArgs();
-            TypeList* parseTypeList();
-
-        Type* parseTypeLiteral();
-            TypeLiteral* parseArrayorSliceType();
-                ArrayType* parseArrayType();
-                SliceType* parseSliceType();
-            StructType* parseStructType();
-                FieldDecl* parseFieldDecl();
-            PointerType* parsePointerType();
-            FunctionType* parseFunctionType();
-                Signature* parseSignature();
-                    ParameterDecl* parseParameterDecl();
-            ChannelType* parseChannelType();
-            MapType* parseMapType();
+    Programa* parseProgram();
+    TopLevelDecl* parseTopLevelDecl();
+    Declaration* parseDeclaration();
+    FunctionDecl* parseFunctionDecl();
+    MethodDecl* parseMethodDecl();
+    ConstDecl* parseConstDecl();
+    ConstSpec* parseConstSpec();
+    TypeDecl* parseTypeDecl();
+    VarDecl* parseVarDecl();
 
     ExpList* parseExpList();
     // ----------------------------------------------------------------------

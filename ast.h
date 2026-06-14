@@ -24,7 +24,7 @@ class StmtList;
 class Block;
 class IdentifierList;
 class TopLevelDecl;
-class Declaraion;
+class Declaration;
 class FunctionDecl;
 class MethodDecl;
 class Type;
@@ -59,8 +59,7 @@ enum UnaryOp {
 
 class Programa {
 public:
-
-    list<TopLevelDecl> listatopleveldecl;
+    list<TopLevelDecl*> listatopleveldecl;
     void accept(Visitor* visitor);
     ~Programa();
     Programa();
@@ -214,12 +213,6 @@ public:
     void accept(Visitor* visitor);
     ParameterDecl();
     ~ParameterDecl();
-};
-
-class ExpList {
-public:
-    vector<Exp*> expressions;
-
 };
 
 // ----------------------------------------------------------------------
@@ -406,7 +399,7 @@ class IdExp : public Exp {
 public:
     string name;
     void accept(Visitor* visitor) override;
-    IdExp();
+    IdExp(string _name);
     ~IdExp();
 };
 
