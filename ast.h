@@ -22,11 +22,15 @@ class FieldDecl;
 class Exp;
 class StmtList;
 class Block;
+class IdentifierList;
 class TopLevelDecl;
 class Declaraion;
 class FunctionDecl;
 class MethodDecl;
 class Type;
+class TypeSpec;
+class ConstSpec;
+class VarSpec;
 using namespace std;
 
 class Visitor; 
@@ -82,23 +86,64 @@ class MethodDecl : public TopLevelDecl {
 };
 
 class ConstDecl : public Declaration {
+public:
+    list<ConstSpec*> constspecList;
+    void accept(Visitor* visitor) override;
+    ConstDecl();
+    ~ConstDecl();
+};
 
+class ConstSpec {
+public:
+    list<IdExp*> identifierList;
+    Type* tipo;
+    ExpList* expresionlist;
+    void accept(Visitor* visitor);
+    ConstSpec();
+    ~ConstSpec();
 };
 
 class TypeDecl : public Declaration {
+public:
+    list<TypeSpec*> typespecList;
+    void accept(Visitor* visitor) override;
+    TypeDecl();
+    ~TypeDecl();
+};
 
+class TypeSpec {
+public:
+    IdExp* id;
+    Type* tipo;
+    void accept(Visitor* visitor);
+    TypeSpec();
+    ~TypeSpec();
 };
 
 class VarDecl : public Declaration {
+public:
+    list<VarSpec*> varspecList;
+    void accept(Visitor* visitor) override;
+    VarDecl();
+    ~VarDecl();
+};
 
+class VarSpec {
+public:
+
+    list<IdExp*> identifierlist; 
+    Type* tipo;
+    ExpList* expresionlist;
+    void accept(Visitor* visitor);
+    VarSpec();
+    ~VarSpec();
 };
 
 class FieldDecl {
 public:
-    list<IdExp*> identifierlist;
+    list<IdExp*> identifierlist; 
     Type* type;
-    bool tiene_mul;
-    string tag;
+    void accept(Visitor* visitor);
     FieldDecl();
     ~FieldDecl() = default;
 };
@@ -136,12 +181,19 @@ public:
     ~PointerType() override;
 };
 
+class ParameterList {
+    list<ParameterDecl*> parameterList;
+    void accept(Visitor* visitor);
+    ParameterList();
+    ~ParameterList();
+};
+
+
 class ParameterDecl {
 public:
     list<IdExp*> identifierlist;
     Type* type;
-    bool es_variadico;
-
+    void accept(Visitor* visitor);
     ParameterDecl();
     ~ParameterDecl();
 };
