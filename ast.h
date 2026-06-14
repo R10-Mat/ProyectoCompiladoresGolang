@@ -79,9 +79,27 @@ public:
     virtual ~Declaration();
 };
 class FunctionDecl : public TopLevelDecl {
+public:
 
+    ParameterList* lista_de_parametros;
+    Type* tipo;
+    Block* cuerpo;
+    void accept(Visitor* visitor);
+    FunctionDecl();
+    ~FunctionDecl();
 };
 class MethodDecl : public TopLevelDecl {
+public:
+
+    ParameterList* lista_de_parametros;
+    Type* tipo;
+    Block* cuerpo;
+    IdExp* nombre;
+    bool puntero;
+    IdExp* NombreTipoBase;
+    void accept(Visitor* visitor);
+    MethodDecl();
+    ~MethodDecl();
 
 };
 
