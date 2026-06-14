@@ -6,10 +6,6 @@
 #include <ostream>
 #include <vector>
 
-#include "ast.h"
-#include "ast.h"
-#include "ast.h"
-#include "ast.h"
 #include "token.h"
 
 class ForClause;
@@ -26,6 +22,11 @@ class FieldDecl;
 class Exp;
 class StmtList;
 class Block;
+class TopLevelDecl;
+class Declaraion;
+class FunctionDecl;
+class MethodDecl;
+class Type;
 using namespace std;
 
 class Visitor; 
@@ -54,76 +55,42 @@ enum UnaryOp {
 
 class Programa {
 public:
-    Block* bloque;
+
+    list<TopLevelDecl> listatopleveldecl;
     void accept(Visitor* visitor);
     ~Programa();
     Programa();
 };
 
-// -------------- Types -----------------------
-class Type {
+class TopLevelDecl {
+public: 
+    virtual void accept(Visitor* visitor);
+    virtual ~TopLevelDecl();
+    
+};
+
+class Declaration : public TopLevelDecl {
 public:
     virtual void accept(Visitor* visitor);
-    virtual ~Type() = default;
+    virtual ~Declaration();
+};
+class FunctionDecl : public TopLevelDecl {
+
+};
+class MethodDecl : public TopLevelDecl {
+
 };
 
-class TypeName_TypeArgs : public Type {
-public:
-    TypeName* nombres;
-    TypeArgs* argumentos;
-    void accept(Visitor *visitor) override;
-    TypeName_TypeArgs();
+class ConstDecl : public Declaration {
 
-    TypeName_TypeArgs(TypeName * tname, TypeArgs * targs);
-    ~TypeName_TypeArgs() override;
 };
 
-class TypeName: public Type {
-public:
-    string nombre;
-    string prefijo_paquete;
-    void accept(Visitor *visitor) override;
-    TypeName();
-    ~TypeName() override;
+class TypeDecl : public Declaration {
+
 };
 
-class TypeArgs: public Type {
-public:
-    TypeList* lista;
-    void accept(Visitor *visitor) override;
-    TypeArgs();
-    ~TypeArgs() override;
-};
+class VarDecl : public Declaration {
 
-class TypeList: public Type {
-public:
-    list<Type*> lista_tipos;
-    void accept(Visitor *visitor) override;
-    TypeList();
-    ~TypeList() override;
-};
-
-class TypeLiteral: public Type {
-public:
-    void accept(Visitor *visitor) override;
-    ~TypeLiteral() = default;
-};
-
-class ArrayType: public TypeLiteral {
-public:
-    Exp* length;
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    ArrayType();
-    ~ArrayType() = default;
-};
-
-class StructType: public TypeLiteral {
-public:
-    list<FieldDecl*> declaraciones;
-    void accept(Visitor *visitor) override;
-    StructType();
-    ~StructType() = default;
 };
 
 class FieldDecl {
@@ -136,29 +103,37 @@ public:
     ~FieldDecl() = default;
 };
 
-class PointerType: public TypeLiteral {
+// -------------- Types -----------------------
+class Type {
+public:
+    virtual void accept(Visitor* visitor);
+    virtual ~Type() = default;
+};
+
+class ArrayType: public Type {
+public:
+    Exp* length;
+    Type* elementtype;
+    void accept(Visitor *visitor) override;
+    ArrayType();
+    ~ArrayType() = default;
+};
+
+class StructType: public Type {
+public:
+    list<FieldDecl*> declaraciones;
+    void accept(Visitor *visitor) override;
+    StructType();
+    ~StructType() = default;
+};
+
+
+class PointerType: public Type {
 public:
     Type* basetype;
     void accept(Visitor *visitor) override;
     PointerType();
     ~PointerType() override;
-};
-
-class FunctionType: public TypeLiteral {
-public:
-    Signature* signature;
-    void accept(Visitor *visitor) override;
-    FunctionType();
-    ~FunctionType() override;
-};
-
-class Signature {
-public:
-    list<ParameterDecl*> parameterlist;
-    list<ParameterDecl*> result_parameters;
-    void accept(Visitor *visitor);
-    Signature();
-    ~Signature();
 };
 
 class ParameterDecl {
@@ -169,68 +144,6 @@ public:
 
     ParameterDecl();
     ~ParameterDecl();
-};
-
-class InterfaceType: public TypeLiteral {
-public:
-    list<InterfaceElem*> elementos;
-    void accept(Visitor *visitor) override;
-    InterfaceType();
-    ~InterfaceType() override;
-};
-
-class InterfaceElem {
-    virtual ~InterfaceElem() = default;
-    virtual void accept(Visitor* visitor) = 0;
-};
-
-class MethodElem: public InterfaceElem {
-public:
-    string identifier;
-    Signature* signature;
-    void accept(Visitor *visitor) override;
-    MethodElem();
-    ~MethodElem() override;
-};
-
-class TypeElem: public InterfaceElem {
-    list<TypeTerm> terminos;
-    TypeElem();
-    ~TypeElem() override;
-    void accept(Visitor *visitor) override;
-};
-
-class TypeTerm {
-    bool tiene_underline;
-    Type* tipo;
-    void accept(Visitor* visitor);
-    TypeTerm();
-    ~TypeTerm();
-};
-
-class SliceType: public TypeLiteral {
-public:
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    SliceType();
-    ~SliceType() override;
-};
-
-class ChannelType: public TypeLiteral {
-public:
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    ChannelType();
-    ~ChannelType() override;
-};
-
-class MapType: public TypeLiteral {
-public:
-    Type* keytype;
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    MapType();
-    ~MapType() override;
 };
 
 class ExpList {
