@@ -11,7 +11,9 @@ private:
     bool match(Token::Type ttype); // Verifica si el token actual coincide con un tipo esperado y avanza si es así
     bool check(Token::Type ttype);          // Comprueba si el token actual es de cierto tipo, sin avanzar
     bool advance();                         // Avanza al siguiente token
-    bool isAtEnd();                         // Comprueba si ya se llegó al final de la entrada
+    bool isAtEnd(); 
+    void expect(Token::Type ttype);
+    void error(const std::string &expected);
 public:
     Parser(Scanner* scanner);           
 
@@ -36,6 +38,11 @@ public:
     VarSpec* parseVarSpec();
     ExpList* parseExpList();
     ParameterList* parseParameterList();
+    ParameterDecl* parseParameterDecl();
+    ArrayType* parseArrayType();
+    StructType* parseStructType();
+    PointerType* parsePointerType();
+    FieldDecl* parseFieldDecl();
 
     
     // Parte Bruno: Blocks y Statements

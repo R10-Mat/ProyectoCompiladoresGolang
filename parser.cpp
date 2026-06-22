@@ -43,6 +43,23 @@ bool Parser::advance() {
     return false;
 }
 
+void Parser::error(const std::string &expected) {
+  std::string found;
+  if (isAtEnd()) {
+    found = "fin de entrada";
+  } else {
+    found = Token::typeName(current->type);
+    if (!current->text.empty())
+      found += " '" + current->text + "'";
+  }
+  throw std::runtime_error("Error sintáctico: se esperaba " + expected +
+                           ", pero se encontró " + found);
+}
+
+void Parser::expect(Token::Type ttype) {
+  if (!match(ttype))
+    error(Token::typeName(ttype));
+}
 bool Parser::isAtEnd() {
     return (current->type == Token::END);
 }
@@ -201,14 +218,86 @@ MethodDecl* Parser::parseMethodDecl(){
     return methodDecl;
 }
 FunctionDecl* Parser::parseFunctionDecl(){
+
+    FunctionDecl* functionDecl = new FunctionDecl();
+    expect(Token::ID);
+    functionDecl->name = previous->text;
+    expect(Token::LPAREN);
+    functionDecl->lista_de_parametros = parseParameterList();
+    expect(Token::RPAREN);
+    Type* _tipo = parseType();// algo dudoso
+    if (_tipo){
+        functionDecl->tipo = _tipo;
+    }
+    functionDecl->cuerpo = parseBlock();
+
+    return functionDecl;
 }
 Type* Parser::parseType(){
+
+    // Deudas de parseo
+    if (match(Token::ID))
+        return new BasicType(previous->text);
+    else if (match(Token::STRUCT)){
+        StructType* st = new StructType();
+        expect(Token::LLLAVE);
+        st->declaraciones.push_back(parseFieldDecl());
+        while (match(Token::PCOMMA)){
+            st->declaraciones.push_back(parseFieldDecl());
+        }
+        expect(Token::RLLAVE);
+        return st;
+    }else if (match(Token::MUL)){
+        PointerType* pointer = new PointerType();
+        pointer->basetype = parseType();
+        return pointer;
+    }else if (match(Token::LCORCHETE)){
+        ArrayType* array = new ArrayType();
+        array->length = parseExp();
+        array->elementtype = parseType();
+        expect(Token::RCORCHETE);
+        return array;
+    }else {
+        throw runtime_error("Error sintáctico");
+    }
+
 }
 IdentifierList* Parser::parseIdentifierList(){
+    IdentifierList* identifierlist = new IdentifierList();
+    expect(Token::ID);
+    string id = previous->text;
+    identifierlist->lista_ids.push_back(id);
+    while (match(Token::ID)) {
+        id = previous->text;
+        identifierlist->lista_ids.push_back(id);
+    }
 
+    return identifierlist;
 }
 ParameterList* Parser::parseParameterList(){
+    ParameterList* lista_parametros = new ParameterList();
 
+    ParameterDecl* declaracion = parseParameterDecl();
+    lista_parametros->parameterList.push_back(declaracion);
+    while (match(Token::COMMA)) {
+        declaracion = parseParameterDecl();
+        lista_parametros->parameterList.push_back(declaracion);
+    }
+
+    return lista_parametros;
+}
+
+ParameterDecl* Parser::parseParameterDecl(){
+    ParameterDecl* parameterDecl = new ParameterDecl();
+    parameterDecl->identifierlist = parseIdentifierList();
+    parameterDecl->type = parseType();
+    return parameterDecl;
+}
+FieldDecl* Parser::parseFieldDecl(){
+    FieldDecl* fieldDecl = new FieldDecl();
+    fieldDecl->identifierlist = parseIdentifierList();
+    fieldDecl->type = parseType();
+    return fieldDecl;
 }
 
 // ----------------------------------------------------------------------

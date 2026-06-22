@@ -120,6 +120,15 @@ ExpStmt::~ExpStmt() {
     delete exp;
 }
 */
+BasicType::BasicType(string type):tipo(type){}
+BasicType::~BasicType(){}
+
+StructType::StructType(){}
+StructType::~StructType(){
+    for (auto v:declaraciones ){
+        delete v;
+    }
+}
 
 // PrintStmt  ─────────────────────────────────────────
 /*

@@ -81,6 +81,7 @@ public:
 };
 class FunctionDecl : public TopLevelDecl {
 public:
+    string name;
     ParameterList* lista_de_parametros;
     Type* tipo;
     Block* cuerpo;
@@ -175,6 +176,16 @@ public:
     virtual ~Type() = default;
 };
 
+class BasicType : public Type{
+public:
+
+    string tipo;
+    void accept(Visitor* visitor) override;
+  
+    BasicType(string t);
+    ~BasicType();
+};
+
 class ArrayType: public Type {
 public:
     Exp* length;
@@ -189,7 +200,7 @@ public:
     list<FieldDecl*> declaraciones;
     void accept(Visitor *visitor) override;
     StructType();
-    ~StructType() = default;
+    ~StructType();
 };
 
 
@@ -202,6 +213,7 @@ public:
 };
 
 class ParameterList {
+public:
     list<ParameterDecl*> parameterList;
     void accept(Visitor* visitor);
     ParameterList();
