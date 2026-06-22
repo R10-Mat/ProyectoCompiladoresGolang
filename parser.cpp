@@ -60,6 +60,7 @@ void Parser::expect(Token::Type ttype) {
   if (!match(ttype))
     error(Token::typeName(ttype));
 }
+
 bool Parser::isAtEnd() {
     return (current->type == Token::END);
 }
@@ -74,7 +75,7 @@ bool Parser::isAtEnd() {
 // Parte Rayhan: global y types
 // ----------------------------------------------------------------------
 Programa* Parser::parseProgram() {
-    Programa* program = new Programa();
+    auto* program = new Programa();
     program->listatopleveldecl.push_back(parseTopLevelDecl());
     while (match(Token::PCOMMA)){
         program->listatopleveldecl.push_back(parseTopLevelDecl());
@@ -86,8 +87,8 @@ Programa* Parser::parseProgram() {
     return program;
 }
 TopLevelDecl* Parser::parseTopLevelDecl(){
-    TopLevelDecl* d = new TopLevelDecl();
-    if (check(Token::CONST)){
+    auto* d = new TopLevelDecl();
+    if (check(Token::CONST) || check(Token::TYPE) || check(Token::VAR)){
         d = parseDeclaration();
     }else if (match(Token::FUNC)){
         if (match(Token::LPAREN)){
@@ -115,39 +116,42 @@ ConstDecl* Parser::parseConstDecl(){
     ConstDecl* decl = new ConstDecl();
     if (match(Token::LPAREN)){
         decl->constspecList.push_back(parseConstSpec());
-        while(Token::PCOMMA){
+        while(match(Token::PCOMMA)){
             decl->constspecList.push_back(parseConstSpec());
         }
         match(Token::RPAREN);
-        return decl;
     }else{
         decl->constspecList.push_back(parseConstSpec());
     }
     return decl;
 }
 ConstSpec* Parser::parseConstSpec(){
-    ConstSpec* constspec = new ConstSpec();
+    auto constspec = new ConstSpec();
     constspec->identifierList = parseIdentifierList();
-    constspec->tipo = parseType();
+    if (Coso) {
+        constspec->tipo = parseType();
+    } else {
+        constspec->tipo = nullptr;
+    }
+    match(Token::ASSIGN);
     constspec->expresionlist = parseExpList();
     return constspec;
 }
 
 TypeDecl* Parser::parseTypeDecl(){
-    TypeDecl* typedecl = new TypeDecl();
+    auto typedecl = new TypeDecl();
     if (match(Token::LPAREN)){
         typedecl->typespecList.push_back(parseTypeSpec());
-        while(Token::PCOMMA){
+        while(match(Token::PCOMMA)){
             typedecl->typespecList.push_back(parseTypeSpec());
         }
         match(Token::RPAREN);
-        return typedecl;
     }else{
         typedecl->typespecList.push_back(parseTypeSpec());
     }
     return typedecl;
-    
 }
+
 TypeSpec* Parser::parseTypeSpec(){
     TypeSpec* typespec = new TypeSpec();
     if (match(Token::ID)){
@@ -159,7 +163,7 @@ TypeSpec* Parser::parseTypeSpec(){
     return typespec;
 }
 VarDecl* Parser::parseVarDecl(){
-    VarDecl* varDecl = new VarDecl();
+    auto varDecl = new VarDecl();
     if (match(Token::LPAREN)){
         varDecl->varspecList.push_back(parseVarSpec());
         while(match(Token::PCOMMA)){
@@ -174,12 +178,35 @@ VarDecl* Parser::parseVarDecl(){
 // Que hago si el tipo tiene que necesariamente poner eso y si no pone debe arrojar error
 
 VarSpec* Parser::parseVarSpec(){
-    VarSpec* varSpec = new VarSpec();
+    auto varSpec = new VarSpec();
     varSpec->identifierlist = parseIdentifierList();
-    varSpec->tipo = parseType();
-    varSpec->expresionlist = parseExpList();
+    if (match(Token::ASSIGN)) {
+        varSpec->tipo = nullptr;
+        varSpec->expresionlist = parseExpList();
+    } else {
+        varSpec->tipo = parseType();
+        if (check(Token::ASSIGN)) {
+            varSpec->expresionlist = parseExpList();
+        } else {
+            varSpec->expresionlist = nullptr;
+        }
+    }
     return varSpec;
 }
+
+IdentifierList* Parser::parseIdentifierList(){
+    auto identifierlist = new IdentifierList();
+    match(Token::ID);
+    string id = previous->text;
+    identifierlist->lista_ids.push_back(id);
+    while (match(Token::ID)) {
+        id = previous->text;
+        identifierlist->lista_ids.push_back(id);
+    }
+
+    return identifierlist;
+}
+
 MethodDecl* Parser::parseMethodDecl(){
     MethodDecl* methodDecl = new MethodDecl();
     if (match(Token::ID)){
@@ -262,18 +289,7 @@ Type* Parser::parseType(){
     }
 
 }
-IdentifierList* Parser::parseIdentifierList(){
-    IdentifierList* identifierlist = new IdentifierList();
-    expect(Token::ID);
-    string id = previous->text;
-    identifierlist->lista_ids.push_back(id);
-    while (match(Token::ID)) {
-        id = previous->text;
-        identifierlist->lista_ids.push_back(id);
-    }
 
-    return identifierlist;
-}
 ParameterList* Parser::parseParameterList(){
     ParameterList* lista_parametros = new ParameterList();
 

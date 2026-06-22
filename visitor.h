@@ -4,6 +4,43 @@
 #include "token.h"
 #include <list>
 #include <unordered_map>
+
+class Visitor {
+public:
+    // Parte Rayhan //
+    virtual void visit(Programa* programa) = 0;
+    virtual void visit(FunctionDecl* fun_decl) = 0;
+    virtual void visit(MethodDecl* method_decl) = 0;
+    virtual void visit(ConstDecl* const_decl) = 0;
+    virtual void visit(ConstSpec* const_spec) = 0;
+    virtual void visit(TypeDecl* type_decl) = 0;
+    virtual void visit(TypeSpec* type_spec) = 0;
+    virtual void visit(VarDecl* var_decl) = 0;
+    virtual void visit(VarSpec* var_spec) = 0;
+    virtual void visit(FieldDecl* field_decl) = 0;
+    virtual void visit(ArrayType* array_type) = 0;
+    virtual void visit(StructType* struct_type) = 0;
+    virtual void visit(PointerType* pointer_type) = 0;
+    virtual void visit(ParameterList* parameter_list) = 0;
+    virtual void visit(ParameterDecl* parameter_decl) = 0;
+    //  Parte Bruno //
+    virtual void visit(Block* block) = 0;
+    virtual void visit(StmtList* stmt_list) = 0;
+    virtual void visit(DeclarationStmt* declaration_stmt) = 0;
+    virtual void visit(BlockStmt* block_stmt) = 0;
+    virtual void visit(ExpresionStmt* expresion_stmt) = 0;
+    virtual void visit(IncDecStmt* inc_dec_stmt) = 0;
+    virtual void visit(Assigment* assigment_stmt) = 0;
+    virtual void visit(ReturnStmt* return_stmt) = 0;
+    virtual void visit(BreakStmt* break_stmt) = 0;
+    virtual void visit(ContinueStmt* continue_stmt) = 0;
+    virtual void visit(IfStmt* if_stmt) = 0;
+    virtual void visit(SwitchStmt* switch_stmt) = 0;
+    virtual void visit(ExpCaseClause* exp_case_clause) = 0;
+    virtual void visit(ForStmt* for_stmt) = 0;
+    virtual void visit(ForClause* for_clause) = 0;
+    //  Parte Nico //
+};
 /*
 class BinaryExp;
 class UnaryExp;

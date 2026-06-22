@@ -5,6 +5,34 @@
 #include "visitor.h"
 #include "token.h"
 using namespace std;
+// -------------------------- Metodos Accept ----------------------------------
+// Parte rayhan //
+
+
+// Parte bruno //
+void Block::accept(Visitor *visitor) {visitor->visit(this);}
+void StmtList::accept(Visitor *visitor) {visitor->visit(this);}
+void DeclarationStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void BlockStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void ExpresionStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void IncDecStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void Assigment::accept(Visitor *visitor) {visitor->visit(this);}
+void ReturnStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void BreakStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void ContinueStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void IfStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void SwitchStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void ExpCaseClause::accept(Visitor *visitor) {visitor->visit(this);}
+void ForStmt::accept(Visitor *visitor) {visitor->visit(this);}
+void ForClause::accept(Visitor *visitor) {visitor->visit(this);}
+// Parte Nico //
+
+// -----------------------------------------------------------------------------
+
+
+
+
+
 /*
 void BinaryExp::accept(Visitor* visitor) { visitor->visit(this); }
 void UnaryExp::accept(Visitor* visitor)  { visitor->visit(this); }
