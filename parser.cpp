@@ -70,7 +70,7 @@ Programa* Parser::parseProgram() {
 }
 TopLevelDecl* Parser::parseTopLevelDecl(){
     TopLevelDecl* d = new TopLevelDecl();
-    if (match(Token::CONST)){
+    if (check(Token::CONST)){
         d = parseDeclaration();
     }else if (match(Token::FUNC)){
         if (match(Token::LPAREN)){
@@ -109,20 +109,105 @@ ConstDecl* Parser::parseConstDecl(){
     return decl;
 }
 ConstSpec* Parser::parseConstSpec(){
-
+    ConstSpec* constspec = new ConstSpec();
+    constspec->identifierList = parseIdentifierList();
+    constspec->tipo = parseType();
+    constspec->expresionlist = parseExpList();
+    return constspec;
 }
 
 TypeDecl* Parser::parseTypeDecl(){
+    TypeDecl* typedecl = new TypeDecl();
+    if (match(Token::LPAREN)){
+        typedecl->typespecList.push_back(parseTypeSpec());
+        while(Token::PCOMMA){
+            typedecl->typespecList.push_back(parseTypeSpec());
+        }
+        match(Token::RPAREN);
+        return typedecl;
+    }else{
+        typedecl->typespecList.push_back(parseTypeSpec());
+    }
+    return typedecl;
     
+}
+TypeSpec* Parser::parseTypeSpec(){
+    TypeSpec* typespec = new TypeSpec();
+    if (match(Token::ID)){
+        typespec->id = previous->text;
+        typespec->tipo = parseType();// manejar que no haya type
+    }else{
+        throw runtime_error("Error sintáctico");
+    }
+    return typespec;
 }
 VarDecl* Parser::parseVarDecl(){
-    
+    VarDecl* varDecl = new VarDecl();
+    if (match(Token::LPAREN)){
+        varDecl->varspecList.push_back(parseVarSpec());
+        while(match(Token::PCOMMA)){
+            varDecl->varspecList.push_back(parseVarSpec());
+        }
+        match(Token::RPAREN);
+    }else {
+        varDecl->varspecList.push_back(parseVarSpec());
+    }
+    return varDecl;
 }
+// Que hago si el tipo tiene que necesariamente poner eso y si no pone debe arrojar error
 
+VarSpec* Parser::parseVarSpec(){
+    VarSpec* varSpec = new VarSpec();
+    varSpec->identifierlist = parseIdentifierList();
+    varSpec->tipo = parseType();
+    varSpec->expresionlist = parseExpList();
+    return varSpec;
+}
 MethodDecl* Parser::parseMethodDecl(){
-
+    MethodDecl* methodDecl = new MethodDecl();
+    if (match(Token::ID)){
+        methodDecl->nombreId = previous->text;
+        if (match(Token::MUL)){
+            methodDecl->puntero = true;
+        }else {
+            methodDecl->puntero = false;
+        }
+        if (match(Token::ID)){
+            methodDecl->NombreTipoBase = previous->text;
+            if (match(Token::RPAREN)){
+                if (match(Token::ID)){
+                    methodDecl->nombreMethod = previous->text;
+                    if (match(Token::LPAREN)){
+                        methodDecl->lista_de_parametros = parseParameterList();
+                        if (match(Token::RPAREN)){
+                            methodDecl->tipo = parseType();
+                            methodDecl->cuerpo = parseBlock();// Es necesario
+                        }
+                    }else {
+                        throw runtime_error("Error sintáctico");
+                    }
+                }else {
+                    throw runtime_error("Error sintáctico");
+                }
+            }else {
+                throw runtime_error("Error sintáctico");
+            }
+        }else {
+            throw runtime_error("Error sintáctico");
+        }
+    }else{
+        throw runtime_error("Error sintáctico");
+    }
+    return methodDecl;
 }
 FunctionDecl* Parser::parseFunctionDecl(){
+}
+Type* Parser::parseType(){
+}
+IdentifierList* Parser::parseIdentifierList(){
+
+}
+ParameterList* Parser::parseParameterList(){
 
 }
 

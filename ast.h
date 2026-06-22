@@ -8,6 +8,7 @@
 
 #include "token.h"
 
+class ExpList;
 class ForClause;
 class ExpCaseClause;
 class TypeTerm;
@@ -27,6 +28,7 @@ class TopLevelDecl;
 class Declaration;
 class FunctionDecl;
 class MethodDecl;
+class ParameterList;
 class Type;
 class TypeSpec;
 class ConstSpec;
@@ -79,7 +81,6 @@ public:
 };
 class FunctionDecl : public TopLevelDecl {
 public:
-
     ParameterList* lista_de_parametros;
     Type* tipo;
     Block* cuerpo;
@@ -93,9 +94,10 @@ public:
     ParameterList* lista_de_parametros;
     Type* tipo;
     Block* cuerpo;
-    IdExp* nombre;
+    string nombreMethod;
+    string nombreId;
     bool puntero;
-    IdExp* NombreTipoBase;
+    string NombreTipoBase;
     void accept(Visitor* visitor);
     MethodDecl();
     ~MethodDecl();
@@ -112,7 +114,7 @@ public:
 
 class ConstSpec {
 public:
-    list<IdExp*> identifierList;
+    IdentifierList* identifierList;
     Type* tipo;
     ExpList* expresionlist;
     void accept(Visitor* visitor);
@@ -130,7 +132,7 @@ public:
 
 class TypeSpec {
 public:
-    IdExp* id;
+    string id;
     Type* tipo;
     void accept(Visitor* visitor);
     TypeSpec();
@@ -148,7 +150,7 @@ public:
 class VarSpec {
 public:
 
-    list<IdExp*> identifierlist; 
+    IdentifierList* identifierlist; 
     Type* tipo;
     ExpList* expresionlist;
     void accept(Visitor* visitor);
@@ -158,12 +160,13 @@ public:
 
 class FieldDecl {
 public:
-    list<IdExp*> identifierlist; 
+    IdentifierList* identifierlist; 
     Type* type;
     void accept(Visitor* visitor);
     FieldDecl();
     ~FieldDecl() = default;
 };
+
 
 // -------------- Types -----------------------
 class Type {
@@ -208,11 +211,26 @@ class ParameterList {
 
 class ParameterDecl {
 public:
-    list<IdExp*> identifierlist;
+    IdentifierList* identifierlist;
     Type* type;
     void accept(Visitor* visitor);
     ParameterDecl();
     ~ParameterDecl();
+};
+
+class IdentifierList {
+public:
+    list<string> lista_ids;
+    void accept(Visitor* visitor);
+    IdentifierList();
+    ~IdentifierList();
+};
+class ExpList {
+public:
+    list<Exp*> lista_exp;
+    void accept(Visitor* visitor);
+    ExpList();
+    ~ExpList();
 };
 
 // ----------------------------------------------------------------------
