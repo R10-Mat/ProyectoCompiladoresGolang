@@ -86,6 +86,7 @@ Programa* Parser::parseProgram() {
     cout << "Parseo exitoso" << endl;
     return program;
 }
+
 TopLevelDecl* Parser::parseTopLevelDecl(){
     auto* d = new TopLevelDecl();
     if (check(Token::CONST) || check(Token::TYPE) || check(Token::VAR)){
@@ -101,19 +102,21 @@ TopLevelDecl* Parser::parseTopLevelDecl(){
 }
 
 Declaration* Parser::parseDeclaration(){
-    Declaration* d = new Declaration();
+
     if (match(Token::CONST)){
-        d = parseConstDecl();
+        return parseConstDecl();
     }else if (match(Token::TYPE)){
-        d = parseTypeDecl();
+        return parseTypeDecl();
     }else if (match(Token::VAR)){
-        d = parseVarDecl();
+        return parseVarDecl();
+    }else {
+        throw runtime_error("Error sintáctico");
     }
-    return d;
+
 }
 
 ConstDecl* Parser::parseConstDecl(){
-    ConstDecl* decl = new ConstDecl();
+    auto* decl = new ConstDecl();
     if (match(Token::LPAREN)){
         decl->constspecList.push_back(parseConstSpec());
         while(match(Token::PCOMMA)){
@@ -128,8 +131,9 @@ ConstDecl* Parser::parseConstDecl(){
 ConstSpec* Parser::parseConstSpec(){
     auto constspec = new ConstSpec();
     constspec->identifierList = parseIdentifierList();
-    if (Coso) {
-        constspec->tipo = parseType();
+    Type* t = parseType();
+    if (t) {
+        constspec->tipo = t;
     } else {
         constspec->tipo = nullptr;
     }
@@ -159,6 +163,9 @@ TypeSpec* Parser::parseTypeSpec(){
         typespec->tipo = parseType();// manejar que no haya type
     }else{
         throw runtime_error("Error sintáctico");
+    }
+    if (!typespec->tipo){
+        throw runtime_error("Error sintáctico necesita especificar el tipo");
     }
     return typespec;
 }
@@ -208,52 +215,46 @@ IdentifierList* Parser::parseIdentifierList(){
 }
 
 MethodDecl* Parser::parseMethodDecl(){
-    MethodDecl* methodDecl = new MethodDecl();
-    if (match(Token::ID)){
-        methodDecl->nombreId = previous->text;
-        if (match(Token::MUL)){
-            methodDecl->puntero = true;
-        }else {
-            methodDecl->puntero = false;
-        }
-        if (match(Token::ID)){
-            methodDecl->NombreTipoBase = previous->text;
-            if (match(Token::RPAREN)){
-                if (match(Token::ID)){
-                    methodDecl->nombreMethod = previous->text;
-                    if (match(Token::LPAREN)){
-                        methodDecl->lista_de_parametros = parseParameterList();
-                        if (match(Token::RPAREN)){
-                            methodDecl->tipo = parseType();
-                            methodDecl->cuerpo = parseBlock();// Es necesario
-                        }
-                    }else {
-                        throw runtime_error("Error sintáctico");
-                    }
-                }else {
-                    throw runtime_error("Error sintáctico");
-                }
-            }else {
-                throw runtime_error("Error sintáctico");
-            }
-        }else {
-            throw runtime_error("Error sintáctico");
-        }
-    }else{
-        throw runtime_error("Error sintáctico");
+    auto* methodDecl = new MethodDecl();
+    expect(Token::ID);
+    methodDecl->nombreId = previous->text;
+    if (match(Token::MUL)){
+        methodDecl->puntero = true;
+    }else {
+        methodDecl->puntero = false;
     }
+    expect(Token::ID);
+    methodDecl->NombreTipoBase = previous->text;
+    expect(Token::RPAREN);
+    expect(Token::ID);
+    methodDecl->nombreMethod = previous->text;
+    expect(Token::LPAREN);
+    methodDecl->lista_de_parametros = parseParameterList();// nullptr manejo
+    expect(Token::RPAREN);
+    auto* t = parseType();
+    if (t != nullptr)
+        methodDecl->tipo = t;
+    else {
+        methodDecl->tipo = nullptr;
+    }
+    auto* bloque = parseBlock();
+    if (!bloque)
+        throw runtime_error("Error sintáctico necesita un cuerpo la función");
+
+    methodDecl->cuerpo = bloque;
     return methodDecl;
+
 }
 FunctionDecl* Parser::parseFunctionDecl(){
 
-    FunctionDecl* functionDecl = new FunctionDecl();
+    auto* functionDecl = new FunctionDecl();
     expect(Token::ID);
     functionDecl->name = previous->text;
     expect(Token::LPAREN);
     functionDecl->lista_de_parametros = parseParameterList();
     expect(Token::RPAREN);
     Type* _tipo = parseType();// algo dudoso
-    if (_tipo){
+    if (_tipo != nullptr){
         functionDecl->tipo = _tipo;
     }
     functionDecl->cuerpo = parseBlock();
@@ -285,7 +286,7 @@ Type* Parser::parseType(){
         expect(Token::RCORCHETE);
         return array;
     }else {
-        throw runtime_error("Error sintáctico");
+        return nullptr; // Vacio
     }
 
 }
