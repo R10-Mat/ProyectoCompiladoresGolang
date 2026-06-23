@@ -469,7 +469,7 @@ IfStmt *Parser::parseIfStmt() {
         match(Token::ELSE);
         if (check(Token::LLLAVE)) {
             if_stmt->cuerpo_else = parseBlock();
-            if_stmt->cuerpo_if = nullptr;
+            if_stmt->if_anidado = nullptr;
         } else {
             if_stmt->cuerpo_else = nullptr;
             if_stmt->if_anidado = parseIfStmt();

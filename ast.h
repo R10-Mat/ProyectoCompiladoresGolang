@@ -4,9 +4,7 @@
 #include <string>
 #include <list>
 #include <ostream>
-#include <vector>
-
-#include "token.h"
+#include "Semantic_types.h"
 
 class ExpList;
 class ForClause;
@@ -240,7 +238,7 @@ public:
 class ExpList {
 public:
     list<Exp*> lista_exp;
-    void accept(Visitor* visitor);
+    Semantic_types accept(Visitor* visitor);
     ExpList();
     ~ExpList();
 };
@@ -251,7 +249,7 @@ public:
 class Block {
 public:
     StmtList* lista_statements;
-    void accept(Visitor* visitor);
+    Semantic_types accept(Visitor* visitor);
     Block();
     ~Block();
 };
@@ -259,21 +257,21 @@ public:
 class StmtList {
 public:
     list<Stmt*> statements;
-    void accept(Visitor* visitor);
+    Semantic_types accept(Visitor* visitor);
     StmtList();
     ~StmtList();
 };
 
 class Stmt{
 public:
-    virtual void accept(Visitor* visitor) = 0;
+    virtual Semantic_types accept(Visitor* visitor) = 0;
     virtual ~Stmt() = 0;
 };
 
 class DeclarationStmt: public Stmt {
 public:
     Declaration* declaration;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     DeclarationStmt();
     ~DeclarationStmt();
 };
@@ -282,7 +280,7 @@ public:
 class BlockStmt : public Stmt {
 public:
     Block* block;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     BlockStmt();
     ~BlockStmt();
 };
@@ -290,7 +288,7 @@ public:
 class ExpresionStmt : public Stmt {
 public:
     Exp* expresion;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ExpresionStmt();
     ~ExpresionStmt();
 };
@@ -299,7 +297,7 @@ class IncDecStmt : public Stmt {
 public:
     Exp* expresion;
     UnaryOp op;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     IncDecStmt();
     ~IncDecStmt();
 };
@@ -309,7 +307,7 @@ public:
     ExpList* expresion_list_id;
     ExpList* expresion_list_values;
     AssignOp op;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     Assigment();
     ~Assigment();
 };
@@ -317,21 +315,21 @@ public:
 class ReturnStmt : public Stmt {
 public:
     ExpList* expresion_list;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ReturnStmt();
     ~ReturnStmt();
 };
 
 class BreakStmt: public Stmt {
 public:
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     BreakStmt();
     ~BreakStmt();
 };
 
 class ContinueStmt: public Stmt {
 public:
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ContinueStmt();
     ~ContinueStmt();
 };
@@ -342,7 +340,7 @@ public:
     Block* cuerpo_if;
     Block* cuerpo_else;
     IfStmt* if_anidado;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     IfStmt();
     ~IfStmt();
 };
@@ -351,7 +349,7 @@ class SwitchStmt: public Stmt {
 public:
     Exp* expresion;
     list<ExpCaseClause*> exp_case_clause;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     SwitchStmt();
     ~SwitchStmt();
 };
@@ -360,7 +358,7 @@ class ExpCaseClause {
 public:
     ExpList* expresion_list;
     StmtList* statement_list;
-    void accept(Visitor *visitor);
+    Semantic_types accept(Visitor *visitor);
     ExpCaseClause();
     ~ExpCaseClause();
 };
@@ -370,7 +368,7 @@ public:
     Exp* expresion;
     ForClause* for_clause;
     Block* block;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ForStmt();
     ~ForStmt();
 };
@@ -381,7 +379,7 @@ public:
     Exp* expresion;
     Assigment* asignacion2;
     IncDecStmt* inc_dec_stmt;
-    void accept(Visitor *visitor);
+    Semantic_types accept(Visitor *visitor);
     ForClause();
     ~ForClause();
 };
@@ -391,7 +389,7 @@ public:
 // ----------------------------------------------------------------------
 class Exp {
 public:
-    virtual void accept(Visitor* visitor) = 0;
+    virtual Semantic_types accept(Visitor* visitor) = 0;
     virtual ~Exp() = 0;
     static string binopToString(BinaryOp op);
     static string unopToString(UnaryOp op);
@@ -402,7 +400,7 @@ public:
     Exp*     left;
     Exp*     right;
     BinaryOp op;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     BinaryExp(Exp* _left, Exp* _right, BinaryOp _op);
     ~BinaryExp();
 };
@@ -412,7 +410,7 @@ public:
     Exp*    exp;
     UnaryOp op;
     bool    postfix;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     UnaryExp(Exp* _exp, UnaryOp _op, bool _postfix = false);
     ~UnaryExp();
 };
@@ -420,7 +418,7 @@ public:
 class IntExp : public Exp {
 public:
     int value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     IntExp(int v);
     ~IntExp();
 };
@@ -428,7 +426,7 @@ public:
 class IdExp : public Exp {
 public:
     string name;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     IdExp(string _name);
     ~IdExp();
 };
@@ -437,14 +435,14 @@ class QualifiedIdent : public Exp {
 public:
     Exp* prefijo;
     string subfijo;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     QualifiedIdent();
     ~QualifiedIdent();
 };
 class FloatExp : public Exp {
 public:
     float value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     FloatExp(float v);
     ~FloatExp();
 };
@@ -452,7 +450,7 @@ public:
 class BoolExp : public Exp {
 public:
     bool value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     BoolExp(bool v);
     ~BoolExp();
 };
@@ -461,7 +459,7 @@ public:
 class StringExp : public Exp {
 public:
     string value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     StringExp(string v);
     ~StringExp();
 };
