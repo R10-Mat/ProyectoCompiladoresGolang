@@ -165,7 +165,7 @@ Semantic_types TypeChekerVisitor::visit(SwitchStmt *switch_stmt) {
         }
     }
     entorno.remove_level();
-    this->tipo_retorno_actual
+    this->tipo_retorno_actual;
     return Semantic_types(Semantic_types::VOID);
 }
 
@@ -181,7 +181,7 @@ Semantic_types TypeChekerVisitor::visit(ForStmt *for_stmt) {
         for_stmt->block->accept(this);
     }
     this -> dentro_de_bucle--;
-    return Semantic_types(Semantic_types::VOID):
+    return Semantic_types(Semantic_types::VOID);
 }
 
 Semantic_types TypeChekerVisitor::visit(ForClause *for_clause) {

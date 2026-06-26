@@ -1,9 +1,6 @@
 #ifndef VISITOR_H
 #define VISITOR_H
 #include "ast.h"
-#include "token.h"
-#include <list>
-#include <unordered_map>
 
 #include "Semantic_types.h"
 

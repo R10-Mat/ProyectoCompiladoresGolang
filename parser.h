@@ -62,7 +62,7 @@ public:
     SwitchStmt* parseSwitchStmt();
         ExpCaseClause* parseExpCaseClause();
     ForStmt* parseForStmt();
-        ForClause* parseForClause();
+        ForClause* parseForClause(Exp* primer_exp);
     // ----------------------------------------------------------------------
     // Parte Nico: Expresions
     // ----------------------------------------------------------------------

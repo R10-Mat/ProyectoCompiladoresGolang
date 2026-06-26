@@ -370,7 +370,7 @@ Stmt *Parser::parseStmt() {
 
     auto expresion_list = parseExpList();
     if (check(Token::INC) || check(Token::DEC)) {
-        return parseIncDecStmt(expresion_list->expressions[0]);
+        return parseIncDecStmt(expresion_list->lista_exp[0]);
     }
 
     if (check(Token::PLUSASSIGN) || check(Token::NEGASSIGN) ||
@@ -378,7 +378,7 @@ Stmt *Parser::parseStmt() {
         return parseAssigment(expresion_list);
     }
 
-    return parseExpresionStmt(expresion_list->expressions[0]);
+    return parseExpresionStmt(expresion_list->lista_exp[0]);
 
 }
 
@@ -430,9 +430,12 @@ Assigment *Parser::parseAssigment(ExpList* el) {
     } else if (check(Token::MULASSIGN)) {
         match(Token::MULASSIGN);
         ops = MUL_ASSIGN;
-    } else {
+    } else if (check(Token::DIVASSIGN)){
         match(Token::DIVASSIGN);
         ops = DIV_ASSIGN;
+    } else {
+        match(Token::ASSIGN);
+        ops = ASSIGN;
     }
     assignment->op = ops;
     assignment->expresion_list_values = parseExpList();
@@ -515,19 +518,47 @@ ExpCaseClause *Parser::parseExpCaseClause() {
 ForStmt *Parser::parseForStmt() {
     match(Token::FOR);
     auto for_stmt = new ForStmt();
+    // Caso 1: for  {...}
     if (check(Token::LLLAVE)) {
         for_stmt->block = parseBlock();
         return for_stmt;
     }
-
-    // falta el or ese
-
+    // Caso 2: Es un for clause por que encontramos un ; o un = o un , despues de la expresión
+    auto primera_exp = parseExp();
+    if (check(Token::PCOMMA) || check(Token::EQUAL) || check(Token::COMMA)) {
+        for_stmt->for_clause = parseForClause(primera_exp);
+    }
+    // Caso 3: Es una expresion condicional
+    else {
+        for_stmt->expresion = primera_exp;
+    }
     for_stmt->block = parseBlock();
     return for_stmt;
 }
 
-ForClause *Parser::parseForClause() {
-    // falta coso
+ForClause *Parser::parseForClause(Exp* primera_exp) {
+    auto clause = new ForClause();
+    if (!check(Token::PCOMMA)) {
+        auto el1 = new ExpList();
+        el1->lista_exp.push_back(primera_exp);
+        clause->asignacion1 = parseAssigment(el1);
+    }
+    match(Token::PCOMMA);
+    if (!check(Token::PCOMMA)) {
+        clause->expresion = parseExp();
+    }
+    match(Token::PCOMMA);
+    if (!check(Token::LLLAVE)) {
+        auto tercera_exp = parseExp();
+        if (check(Token::INC) || check(Token::DEC)) {
+            clause->inc_dec_stmt = parseIncDecStmt(tercera_exp);
+        } else {
+            auto el2 = new ExpList();
+            el2->lista_exp.push_back(tercera_exp);
+            clause->asignacion2 = parseAssigment(el2);
+        }
+    }
+    return clause;
 }
 
 // ----------------------------------------------------------------------

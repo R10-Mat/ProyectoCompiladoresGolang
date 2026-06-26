@@ -4,6 +4,9 @@
 #include <string>
 #include <list>
 #include <ostream>
+#include <vector>
+
+#include "visitor.h"
 #include "Semantic_types.h"
 
 class ExpList;
@@ -43,7 +46,7 @@ enum BinaryOp {
 };
 
 enum AssignOp {
-    PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN, DIV_ASSIGN
+    PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, ASSIGN
 };
 
 enum UnaryOp {
@@ -166,8 +169,6 @@ public:
     ~FieldDecl() = default;
 };
 
-
-// -------------- Types -----------------------
 class Type {
 public:
     virtual void accept(Visitor* visitor);
@@ -237,7 +238,7 @@ public:
 };
 class ExpList {
 public:
-    list<Exp*> lista_exp;
+    vector<Exp*> lista_exp;
     Semantic_types accept(Visitor* visitor);
     ExpList();
     ~ExpList();
@@ -273,16 +274,15 @@ public:
     Declaration* declaration;
     Semantic_types accept(Visitor *visitor) override;
     DeclarationStmt();
-    ~DeclarationStmt();
+    ~DeclarationStmt() override;
 };
-
 
 class BlockStmt : public Stmt {
 public:
     Block* block;
     Semantic_types accept(Visitor *visitor) override;
     BlockStmt();
-    ~BlockStmt();
+    ~BlockStmt() override;
 };
 
 class ExpresionStmt : public Stmt {
@@ -290,7 +290,7 @@ public:
     Exp* expresion;
     Semantic_types accept(Visitor *visitor) override;
     ExpresionStmt();
-    ~ExpresionStmt();
+    ~ExpresionStmt() override;
 };
 
 class IncDecStmt : public Stmt {
@@ -299,7 +299,7 @@ public:
     UnaryOp op;
     Semantic_types accept(Visitor *visitor) override;
     IncDecStmt();
-    ~IncDecStmt();
+    ~IncDecStmt() override;
 };
 
 class Assigment : public Stmt {
@@ -309,7 +309,7 @@ public:
     AssignOp op;
     Semantic_types accept(Visitor *visitor) override;
     Assigment();
-    ~Assigment();
+    ~Assigment() override;
 };
 
 class ReturnStmt : public Stmt {
@@ -317,21 +317,21 @@ public:
     ExpList* expresion_list;
     Semantic_types accept(Visitor *visitor) override;
     ReturnStmt();
-    ~ReturnStmt();
+    ~ReturnStmt() override;
 };
 
 class BreakStmt: public Stmt {
 public:
     Semantic_types accept(Visitor *visitor) override;
     BreakStmt();
-    ~BreakStmt();
+    ~BreakStmt() override;
 };
 
 class ContinueStmt: public Stmt {
 public:
     Semantic_types accept(Visitor *visitor) override;
     ContinueStmt();
-    ~ContinueStmt();
+    ~ContinueStmt() override;
 };
 
 class IfStmt: public Stmt {
@@ -342,7 +342,7 @@ public:
     IfStmt* if_anidado;
     Semantic_types accept(Visitor *visitor) override;
     IfStmt();
-    ~IfStmt();
+    ~IfStmt() override;
 };
 
 class SwitchStmt: public Stmt {
@@ -351,7 +351,7 @@ public:
     list<ExpCaseClause*> exp_case_clause;
     Semantic_types accept(Visitor *visitor) override;
     SwitchStmt();
-    ~SwitchStmt();
+    ~SwitchStmt() override;
 };
 
 class ExpCaseClause {
@@ -370,7 +370,7 @@ public:
     Block* block;
     Semantic_types accept(Visitor *visitor) override;
     ForStmt();
-    ~ForStmt();
+    ~ForStmt() override;
 };
 
 class ForClause {
