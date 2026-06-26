@@ -34,6 +34,9 @@ public:
     // tipo de retorno de la funcion actual
     Semantic_types tipo_retorno_actual;
 
+    // tipo de retorno del switch actual
+    Semantic_types tipo_switch_actual;
+
     // numero de fors anidados
     int dentro_de_bucle = 0;
 

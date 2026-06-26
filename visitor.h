@@ -1,8 +1,38 @@
 #ifndef VISITOR_H
 #define VISITOR_H
-#include "ast.h"
 
 #include "Semantic_types.h"
+
+class Programa;
+class FunctionDecl;
+class MethodDecl;
+class ConstDecl;
+class ConstSpec;
+class TypeDecl;
+class TypeSpec;
+class VarDecl;
+class VarSpec;
+class FieldDecl;
+class ArrayType;
+class StructType;
+class PointerType;
+class ParameterList;
+class ParameterDecl;
+class Block;
+class StmtList;
+class DeclarationStmt;
+class BlockStmt;
+class ExpresionStmt;
+class IncDecStmt;
+class Assigment;
+class ReturnStmt;
+class BreakStmt;
+class ContinueStmt;
+class IfStmt;
+class SwitchStmt;
+class ExpCaseClause;
+class ForStmt;
+class ForClause;
 
 class Visitor {
 public:

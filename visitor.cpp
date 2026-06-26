@@ -1,6 +1,4 @@
 #include <iostream>
-#include <fstream>
-#include <cmath>
 #include "ast.h"
 #include "visitor.h"
 #include "Semantic_types.h"
