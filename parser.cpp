@@ -565,6 +565,288 @@ ForClause *Parser::parseForClause(Exp* primera_exp) {
 // Parte Nico: Expresion
 // ----------------------------------------------------------------------
 
-Exp *Parser::parseExp() {
 
+Exp* Parser::parseExp() {
+    Exp* left = parseAndExpr();
+    while (check(Token::OR_LOGICAL)) {
+        advance();
+        Exp* right = parseAndExpr();
+        left = new BinaryExp(left,right,OR_OP);
+    }
+    return left;
+}
+
+Exp* Parser::parseAndExpr(){
+    Exp* left = relationParseExp();
+    while (check(Token::AND_LOGICAL)) {
+        advance();
+        Exp* right = relationParseExp();
+        left = new BinaryExp(left, right,AND_OP);
+    }
+    return left;
+}
+
+Exp* Parser::relationParseExp() {
+    Exp* left = additiveParseExp();
+    
+    while (check(Token::LES) || check(Token::LEQ) || check(Token::GER) || 
+           check(Token::GEQ) || check(Token::EQUAL) || check(Token::DISTINCT)) {
+        
+        BinaryOp op = tokenToBinaryOp(current->type);
+        advance();
+        Exp* right = additiveParseExp();
+        left = new BinaryExp(left, right, op);
+    }
+    
+    return left;
+}
+
+Exp* Parser::additiveParseExp() {
+    Exp* left = multiplicateParseExp();
+    
+    while (check(Token::PLUS) || check(Token::NEG) || check(Token::OR)) {
+        BinaryOp op = tokenToBinaryOp(current->type);
+        advance();
+        Exp* right = multiplicateParseExp();
+        left = new BinaryExp(left, right, op);
+    }
+    
+    return left;
+}
+
+Exp* Parser::multiplicateParseExp() {
+    Exp* left = parseUnaryExpr();
+    
+    while (check(Token::MUL) || check(Token::DIV) || check(Token::MOD) || check(Token::AND) ) {
+        BinaryOp op = tokenToBinaryOp(current->type);
+        advance();
+        Exp* right = parseUnaryExpr();
+        left = new BinaryExp(left, right,op);
+    }
+    
+    return left;
+}
+
+
+Exp* Parser::primaryParseExp() {
+    Exp* base = operandParseExp();
+    
+    while (true) {
+        if (check(Token::PUNTO)) {
+            advance();
+            
+            if (match(Token::LPAREN)) {
+                auto ta = new TypeAssertionExp();
+                ta->expresion = base;
+                ta->tipo = parseType();
+                expect(Token::RPAREN);
+                base = ta;
+            }
+            else if (check(Token::ID)) {
+                auto sel = new SelectorExp();
+                sel->expresion = base;
+                sel->campo = current->text;
+                advance();
+                base = sel;
+            }
+            else {
+                throw runtime_error("Se esperaba identificador o '(' despues de '.'");
+            }
+        }
+        else if (match(Token::LCORCHETE)) {
+            Exp* low = nullptr;
+            Exp* high = nullptr;
+            Exp* max = nullptr;
+
+            if (!check(Token::DOS_PUNTOS)) {
+                low = parseExp();
+            }
+
+            if (match(Token::DOS_PUNTOS)) {
+                if (!check(Token::DOS_PUNTOS) && !check(Token::RCORCHETE)) {
+                    high = parseExp();
+                }
+                if (match(Token::DOS_PUNTOS)) {
+                    max = parseExp();
+                }
+                match(Token::COMMA);
+                expect(Token::RCORCHETE);
+
+                auto sl = new SliceExp(base,low,high,max);
+                base = sl;
+            }
+            else {
+                match(Token::COMMA);
+                expect(Token::RCORCHETE);
+
+                auto idx = new IndexExp();
+                idx->expresion = base;
+                idx->indice = low;
+                base = idx;
+            }
+        }
+        else if (match(Token::LPAREN)) {
+            auto call = new ArgumentsExp();
+            call->funcion = base;
+
+            if (!check(Token::RPAREN)) {
+                call->args = parseExpressionList();
+                match(Token::COMMA);
+            }
+
+            expect(Token::RPAREN);
+            base = call;
+        }
+        else {
+            break;
+        }
+    }
+
+    return base;
+}
+
+vector<Exp*> Parser::parseExpressionList() {
+    vector<Exp*> lista;
+    
+    lista.push_back(parseExp());
+    
+    while (match(Token::COMMA)) {
+        lista.push_back(parseExp());
+    }
+    
+    return lista;
+}
+
+Exp* Parser::parseUnaryExpr() {
+    if (check(Token::PLUS) || check(Token::NEG) || check(Token::NOT) || 
+        check(Token::CARET) || check(Token::MUL) || check(Token::AND) || 
+        check(Token::ARROW)) {
+        
+        UnaryOp op = tokenToUnaryOp(current->type);
+        advance(); 
+        Exp* expresion = parseUnaryExpr(); 
+        
+        return new UnaryExprExp(expresion,op);
+    }
+    
+    return primaryParseExp();
+}
+
+
+Exp* Parser::operandParseExp() {
+    if (match(Token::LPAREN)) {
+        Exp* expresionInterna = parseExp();
+        expect(Token::RPAREN);
+        
+        auto parenExp = new ParenExp(expresionInterna);
+        return parenExp;
+    } 
+    
+    if (check(Token::FUNC)) {
+        match(Token::FUNC);
+        return functionLiteralParseExp();
+    }
+    
+    if (check(Token::INT_LIT) || check(Token::STRING_LIT) || 
+        check(Token::RUNE_LIT) || check(Token::IMAGINARY_LIT) || 
+        check(Token::FLOAT_LIT)) {
+        return basicLiteralParseExp();
+    }
+    
+    if (check(Token::ID)) {
+        string nombre = current->text;
+        match(Token::ID);
+        
+        auto operandName = new OperandNameExp();
+        operandName->name = nombre;
+        
+        if (match(Token::LCORCHETE)) {
+            expect(Token::RCORCHETE);
+        }
+        
+        if (check(Token::LLLAVE)) {
+            auto compLit = new CompositeLitExp();
+            compLit->tipo = new BasicType(nombre); 
+            compLit->elementos = parseLiteralValue();
+            return compLit;
+        }
+        
+        return operandName;
+    }
+    
+    return compositeLiteralParseExp();
+}
+
+
+Exp* Parser::compositeLiteralParseExp() {
+    auto compLit = new CompositeLitExp();
+    
+    compLit->tipo = parseType();
+    
+    compLit->elementos = parseLiteralValue();
+    
+    return compLit;
+}
+
+
+vector<KeyedElement*> Parser::parseLiteralValue() {
+    expect(Token::LLLAVE);
+    vector<KeyedElement*> elementos;
+    
+    while (!check(Token::RLLAVE) && !isAtEnd()) {
+        auto elemento = new KeyedElement();
+        
+        Exp* exp1 = parseExp();
+        
+        if (match(Token::DOS_PUNTOS)) {
+            elemento->key = exp1;
+            elemento->value = parseExp();
+        } else {
+            elemento->key = nullptr;
+            elemento->value = exp1;
+        }
+        
+        elementos.push_back(elemento);
+        
+        if (!match(Token::COMMA)) {
+            break;
+        }
+    }
+    
+    expect(Token::RLLAVE);
+    return elementos;
+}
+
+
+Exp* Parser::basicLiteralParseExp() {
+    auto basicLit = new BasicLitExp();
+    basicLit->valor = current->text;
+    basicLit->tipoLiteral = current->type;
+    
+    if (match(Token::INT_LIT) || match(Token::STRING_LIT) || 
+        match(Token::RUNE_LIT) || match(Token::IMAGINARY_LIT) || 
+        match(Token::FLOAT_LIT)) {
+        return basicLit;
+    }
+    
+    throw runtime_error("Error");
+}
+
+
+FunctionLit* Parser::functionLiteralParseExp() {
+    auto funcLit = new FunctionLit();
+    
+    expect(Token::LPAREN);
+    funcLit->lista_de_parametros = parseParameterList();
+    expect(Token::RPAREN);
+    
+    if (check(Token::ID) || check(Token::MUL) || check(Token::LCORCHETE) || check(Token::STRUCT)) {
+        funcLit->tipo = parseType();
+    } else {
+        funcLit->tipo = nullptr; 
+    }
+
+    funcLit->cuerpo = parseBlock();
+
+    return funcLit;
 }

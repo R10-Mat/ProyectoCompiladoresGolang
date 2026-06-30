@@ -8,6 +8,7 @@
 
 #include "visitor.h"
 #include "Semantic_types.h"
+#include "token.h"
 
 class ExpList;
 class ForClause;
@@ -464,6 +465,159 @@ public:
     ~StringExp();
 };
 
+class Exp {
+public:
+    virtual Semantic_types accept(Visitor* visitor) = 0;
+    virtual ~Exp() = 0;
+    static string binopToString(BinaryOp op);
+    static string unopToString(UnaryOp op);
+};
+
+class BinaryExp : public Exp {
+public:
+    Exp*     left;
+    Exp*     right;
+    BinaryOp op;
+
+    BinaryExp(Exp* left, Exp* right, BinaryOp op);
+    ~BinaryExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class UnaryExprExp : public Exp {
+public:
+    Exp*    expresion;
+    UnaryOp op;
+    bool    postfix;
+
+    UnaryExprExp(Exp* expresion, UnaryOp op, bool postfix = false);
+    ~UnaryExprExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class ParenExp : public Exp {
+public:
+    Exp* expresion;
+
+    ParenExp(Exp* expresion);
+    ~ParenExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class OperandNameExp : public Exp {
+public:
+    string        name;
+    vector<Type*> typeArgs;
+
+    OperandNameExp(string name, vector<Type*> typeArgs = {});
+    OperandNameExp();
+    ~OperandNameExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class BasicLitExp : public Exp {
+public:
+    Token::Type tipoLiteral;
+    string      valor;
+
+    BasicLitExp(Token::Type tipoLiteral, string valor);
+    BasicLitExp();
+    ~BasicLitExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class KeyedElement {
+public:
+    Exp* key;    
+    Exp* value;
+
+    KeyedElement(Exp* key, Exp* value);
+    KeyedElement();
+    ~KeyedElement();
+};
+
+class CompositeLitExp : public Exp {
+public:
+    Type*                  tipo;
+    vector<KeyedElement*>  elementos;
+
+    CompositeLitExp(Type* tipo, vector<KeyedElement*> elementos);
+    CompositeLitExp();
+    ~CompositeLitExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class FunctionLit : public Exp {
+public:
+    ParameterList* lista_de_parametros;
+    Type*          tipo;    
+    Block*         cuerpo;
+
+    FunctionLit(ParameterList* lista_de_parametros, Type* tipo, Block* cuerpo);
+    FunctionLit();
+    ~FunctionLit();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class SelectorExp : public Exp {
+public:
+    Exp*   expresion;
+    string campo;
+
+    SelectorExp(Exp* expresion, const string& campo);
+    ~SelectorExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class IndexExp : public Exp {
+public:
+    Exp* expresion;
+    Exp* indice;
+
+    IndexExp(Exp* expresion, Exp* indice);
+    IndexExp();
+    ~IndexExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class SliceExp : public Exp {
+public:
+    Exp* expresion;
+    Exp* low;
+    Exp* high;
+    Exp* max;
+
+    SliceExp(Exp* expresion, Exp* low, Exp* high, Exp* max);
+    SliceExp();
+    ~SliceExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class TypeAssertionExp : public Exp {
+public:
+    Exp*  expresion;
+    Type* tipo;
+
+    TypeAssertionExp(Exp* expresion, Type* tipo);
+    TypeAssertionExp();
+    ~TypeAssertionExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+class ArgumentsExp : public Exp {
+public:
+    Exp*         funcion;
+    vector<Exp*> args;
+    bool         variadic;
+
+    ArgumentsExp(Exp* funcion, vector<Exp*> args, bool variadic);
+    ArgumentsExp();
+    ~ArgumentsExp();
+    Semantic_types accept(Visitor* visitor) override;
+};
+
+BinaryOp tokenToBinaryOp(Token::Type t);
+UnaryOp tokenToUnaryOp(Token::Type t);
 
 
 #endif // AST_H

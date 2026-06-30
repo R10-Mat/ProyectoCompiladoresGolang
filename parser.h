@@ -67,6 +67,19 @@ public:
     // Parte Nico: Expresions
     // ----------------------------------------------------------------------
     Exp* parseExp();
+    Exp* parseAndExpr();
+    Exp* relationParseExp();
+    Exp* additiveParseExp();
+    Exp* multiplicateParseExp();
+    Exp* primaryParseExp();
+    vector<Exp*> parseExpressionList();
+    Exp* parseUnaryExpr();
+    Exp* operandParseExp();
+    vector<KeyedElement*> parseLiteralValue();
+    Exp* compositeLiteralParseExp();
+    FunctionLit* functionLiteralParseExp();
+    Exp* basicLiteralParseExp();
+    Exp* primaryParseExp();
 };
 
 #endif // PARSER_H
