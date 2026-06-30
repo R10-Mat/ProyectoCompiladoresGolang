@@ -2,7 +2,64 @@
 #include <iostream>
 
 using namespace std;
-/*
+
+// ----------------------------------------------------------------------
+// Parte Rayhan: global y types
+// ----------------------------------------------------------------------
+
+
+
+// ----------------------------------------------------------------------
+// Parte Bruno: Blocks y Statements
+// ----------------------------------------------------------------------
+Block::Block() {}
+Block::~Block() { delete lista_statements; }
+
+StmtList::StmtList() {}
+StmtList::~StmtList() { for (const auto i:statements) delete i;}
+
+DeclarationStmt::DeclarationStmt() {}
+DeclarationStmt::~DeclarationStmt() {delete declaration;}
+
+BlockStmt::BlockStmt() {}
+BlockStmt::~BlockStmt() {delete block;}
+
+ExpresionStmt::ExpresionStmt() {}
+ExpresionStmt::~ExpresionStmt() {delete expresion;}
+
+IncDecStmt::IncDecStmt() {}
+IncDecStmt::~IncDecStmt() {delete expresion;}
+
+Assigment::Assigment() {}
+Assigment::~Assigment() {delete expresion_list_id; delete expresion_list_values;}
+
+ReturnStmt::ReturnStmt() {}
+ReturnStmt::~ReturnStmt() {delete expresion_list;}
+
+BreakStmt::BreakStmt() {}
+BreakStmt::~BreakStmt() {}
+
+ContinueStmt::ContinueStmt() {}
+ContinueStmt::~ContinueStmt() {}
+
+IfStmt::IfStmt() {}
+IfStmt::~IfStmt() {delete expresion; delete cuerpo_if; delete cuerpo_else; delete if_anidado;}
+
+SwitchStmt::SwitchStmt() {}
+SwitchStmt::~SwitchStmt() {delete expresion; for (auto i : exp_case_clause) delete i;}
+
+ExpCaseClause::ExpCaseClause() {}
+ExpCaseClause::~ExpCaseClause() {delete expresion_list;delete statement_list;}
+
+ForStmt::ForStmt() {}
+ForStmt::~ForStmt() {delete expresion; delete for_clause; delete block;}
+
+ForClause::ForClause(){}
+ForClause::~ForClause() {delete expresion; delete asignacion1; delete asignacion2; delete inc_dec_stmt;}
+
+// ----------------------------------------------------------------------
+// Parte Nico: Expresion , en proceso
+// ----------------------------------------------------------------------
 // Exp ────────────────────────────────────────────────
 
 Exp::~Exp() {}
@@ -36,111 +93,3 @@ string Exp::unopToString(UnaryOp op) {
         default:     return "?";
     }
 }
-
-// BinaryExp ──────────────────────────────────────────
-
-BinaryExp::BinaryExp(Exp* l, Exp* r, BinaryOp o) : left(l), right(r), op(o) {}
-
-BinaryExp::~BinaryExp() {
-    delete left;
-    delete right;
-}
-
-// UnaryExp ───────────────────────────────────────────
-
-UnaryExp::UnaryExp(Exp* e, UnaryOp o, bool _postfix) : exp(e), op(o) , postfix(_postfix){}
-
-UnaryExp::~UnaryExp() {
-    delete exp;
-}
-
-// IntExp ─────────────────────────────────────────────
-
-IntExp::IntExp(int v) : value(v) {}
-
-IntExp::~IntExp() {}
-
-// FloatExp ───────────────────────────────────────────
-
-FloatExp::FloatExp(float v) : value(v) {}
-
-FloatExp::~FloatExp() {}
-
-// BoolExp ────────────────────────────────────────────
-
-BoolExp::BoolExp(bool v) : value(v) {}
-
-BoolExp::~BoolExp() {}
-
-// StringExp ──────────────────────────────────────────
-
-StringExp::StringExp(string v) : value(v) {}
-
-StringExp::~StringExp() {}
-
-// IdExp ──────────────────────────────────────────────
-
-IdExp::IdExp(string n) : name(n) {}
-
-IdExp::~IdExp() {}
-
-// Programa ───────────────────────────────────────────
-
-Programa::Programa() {}
-
-Programa::~Programa() {
-    for (Stmt* s : slist){
-        delete s;
-    }
-}
-
-// Stmt ───────────────────────────────────────────────
-
-Stmt::~Stmt() {}
-
-// DeclStmt ───────────────────────────────────────────
-
-DeclStmt::DeclStmt(string _name,Token::Type _type, Exp* _init) :  name(_name), type(_type), init(_init) {}
-
-DeclStmt::~DeclStmt() {
-    delete init;
-}
-
-// AutoDeclStmt ───────────────────────────────────────
-
-AutoDeclStmt::AutoDeclStmt(string _name, Exp* _init) : name(_name), init(_init) {}
-
-AutoDeclStmt::~AutoDeclStmt() {
-    delete init;
-}
-
-// AssignStmt ─────────────────────────────────────────
-
-AssignStmt::AssignStmt(string _name, Token::Type _op, Exp* _exp) : name(_name), op(_op), exp(_exp) {}
-
-AssignStmt::~AssignStmt() {
-    delete exp;
-}
-
-// BlockStmt ──────────────────────────────────────────
-
-BlockStmt::BlockStmt(list<Stmt*> _stmts) : stmts(_stmts) {}
-
-BlockStmt::~BlockStmt() {
-    for (Stmt* s : stmts){
-        delete s;
-    }
-}
-
-// ExpStmt ────────────────────────────────────────────
-
-ExpStmt::ExpStmt(Exp* _exp) : exp(_exp) {}
-
-ExpStmt::~ExpStmt() {
-    delete exp;
-}
-
-// PrintStmt  ─────────────────────────────────────────
-
-PrintStmt::PrintStmt(Exp* e) : exp(e) {}
-PrintStmt::~PrintStmt() { delete exp; }*/

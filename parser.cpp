@@ -43,6 +43,24 @@ bool Parser::advance() {
     return false;
 }
 
+void Parser::error(const std::string &expected) {
+  std::string found;
+  if (isAtEnd()) {
+    found = "fin de entrada";
+  } else {
+    found = Token::typeName(current->type);
+    if (!current->text.empty())
+      found += " '" + current->text + "'";
+  }
+  throw std::runtime_error("Error sintáctico: se esperaba " + expected +
+                           ", pero se encontró " + found);
+}
+
+void Parser::expect(Token::Type ttype) {
+  if (!match(ttype))
+    error(Token::typeName(ttype));
+}
+
 bool Parser::isAtEnd() {
     return (current->type == Token::END);
 }
@@ -57,337 +75,247 @@ bool Parser::isAtEnd() {
 // Parte Rayhan: global y types
 // ----------------------------------------------------------------------
 Programa* Parser::parseProgram() {
-    Programa* prog = new Programa();
-    return prog;
+    auto* program = new Programa();
+    program->listatopleveldecl.push_back(parseTopLevelDecl());
+    while (match(Token::PCOMMA)){
+        program->listatopleveldecl.push_back(parseTopLevelDecl());
+    }
+    if (!isAtEnd()){
+        throw runtime_error("Error sintáctico");
+    }
+    cout << "Parseo exitoso" << endl;
+    return program;
 }
 
-Type* Parser::parseType() {
-    // Typename [TypeArgs]
-    if (check(Token::ID)) {
-        TypeName_TypeArgs* tname_targs = parseTypeName_TypeArgs();
-        return tname_targs;
-    }
-    // TypeLit
-    if (check(Token::LCORCHETE) || check(Token::STRUCT) || check(Token::MUL)
-            || check(Token::ARROW) || check(Token::CHAN) || check (Token::MAP)) {
-        return parseTypeLiteral();
-            }
-    // "(" Type ")"
-    if (check(Token::LPAREN)) {
-        match(Token::LPAREN);
-        Type* innertype = parseType();
-        if (check(Token::RPAREN)) {
-            match(Token::RPAREN);
-            return innertype;
+TopLevelDecl* Parser::parseTopLevelDecl(){
+    auto* d = new TopLevelDecl();
+    if (check(Token::CONST) || check(Token::TYPE) || check(Token::VAR)){
+        d = parseDeclaration();
+    }else if (match(Token::FUNC)){
+        if (match(Token::LPAREN)){
+            d = parseMethodDecl();
+        }else{
+            d = parseFunctionDecl();
         }
-        throw runtime_error("Falta el ')'");
     }
-    throw runtime_error("Tipo de dato no reconocido");
+    return d;
 }
 
-TypeName_TypeArgs* Parser::parseTypeName_TypeArgs() {
-    auto tname_targs = new TypeName_TypeArgs();
-    tname_targs->nombres = parseTypeName();
-    if (check(Token::LCORCHETE)){
-        tname_targs->argumentos = parseTypeArgs();
-        return tname_targs;
+Declaration* Parser::parseDeclaration(){
+
+    if (match(Token::CONST)){
+        return parseConstDecl();
+    }else if (match(Token::TYPE)){
+        return parseTypeDecl();
+    }else if (match(Token::VAR)){
+        return parseVarDecl();
+    }else {
+        throw runtime_error("Error sintáctico");
+    }
+
+}
+
+ConstDecl* Parser::parseConstDecl(){
+    auto* decl = new ConstDecl();
+    if (match(Token::LPAREN)){
+        decl->constspecList.push_back(parseConstSpec());
+        while(match(Token::PCOMMA)){
+            decl->constspecList.push_back(parseConstSpec());
+        }
+        match(Token::RPAREN);
+    }else{
+        decl->constspecList.push_back(parseConstSpec());
+    }
+    return decl;
+}
+ConstSpec* Parser::parseConstSpec(){
+    auto constspec = new ConstSpec();
+    constspec->identifierList = parseIdentifierList();
+    Type* t = parseType();
+    if (t) {
+        constspec->tipo = t;
     } else {
-        tname_targs->argumentos = nullptr;
-        return tname_targs;
+        constspec->tipo = nullptr;
     }
+    match(Token::ASSIGN);
+    constspec->expresionlist = parseExpList();
+    return constspec;
 }
 
-TypeName* Parser::parseTypeName() {
-    auto tname = new TypeName();
-    if (check(Token::ID)) {
-        match(Token::ID);
-        string primerId = previous->text;
-        if (check(Token::PUNTO)) {
-            match(Token::PUNTO);
-            if (check(Token::ID)) {
-                match(Token::ID);
-                tname->prefijo_paquete = primerId;
-                tname->nombre = previous->text;
-                return tname;
-            } throw runtime_error("Necesitas otro id");
+TypeDecl* Parser::parseTypeDecl(){
+    auto typedecl = new TypeDecl();
+    if (match(Token::LPAREN)){
+        typedecl->typespecList.push_back(parseTypeSpec());
+        while(match(Token::PCOMMA)){
+            typedecl->typespecList.push_back(parseTypeSpec());
         }
-        tname->nombre = primerId;
-        tname->prefijo_paquete = "";
-        return tname;
-    } throw runtime_error("Necesita un id");
+        match(Token::RPAREN);
+    }else{
+        typedecl->typespecList.push_back(parseTypeSpec());
+    }
+    return typedecl;
 }
 
-TypeArgs *Parser::parseTypeArgs() {
-    auto argumentostipos = new TypeArgs();
-    if (check(Token::LCORCHETE)) {
-        match(Token::LCORCHETE);
-        argumentostipos->lista = parseTypeList();
-        if (check(Token::COMMA)) {
-            match(Token::COMMA);
+TypeSpec* Parser::parseTypeSpec(){
+    TypeSpec* typespec = new TypeSpec();
+    if (match(Token::ID)){
+        typespec->id = previous->text;
+        typespec->tipo = parseType();// manejar que no haya type
+    }else{
+        throw runtime_error("Error sintáctico");
+    }
+    if (!typespec->tipo){
+        throw runtime_error("Error sintáctico necesita especificar el tipo");
+    }
+    return typespec;
+}
+VarDecl* Parser::parseVarDecl(){
+    auto varDecl = new VarDecl();
+    if (match(Token::LPAREN)){
+        varDecl->varspecList.push_back(parseVarSpec());
+        while(match(Token::PCOMMA)){
+            varDecl->varspecList.push_back(parseVarSpec());
         }
-        if (check(Token::RCORCHETE)) {
-            match(Token::RCORCHETE);
-            return argumentostipos;
+        match(Token::RPAREN);
+    }else {
+        varDecl->varspecList.push_back(parseVarSpec());
+    }
+    return varDecl;
+}
+// Que hago si el tipo tiene que necesariamente poner eso y si no pone debe arrojar error
+
+VarSpec* Parser::parseVarSpec(){
+    auto varSpec = new VarSpec();
+    varSpec->identifierlist = parseIdentifierList();
+    if (match(Token::ASSIGN)) {
+        varSpec->tipo = nullptr;
+        varSpec->expresionlist = parseExpList();
+    } else {
+        varSpec->tipo = parseType();
+        if (check(Token::ASSIGN)) {
+            varSpec->expresionlist = parseExpList();
+        } else {
+            varSpec->expresionlist = nullptr;
         }
-        throw runtime_error("Falta un ']' ");
-    } throw runtime_error("Falta un '[' ");
+    }
+    return varSpec;
 }
 
-TypeList* Parser::parseTypeList() {
-    auto lista = new TypeList();
-    lista->lista_tipos.push_back(parseType());
-    while (match(Token::COMMA)) {
-        if (check(Token::RCORCHETE)) {
-            break;
+IdentifierList* Parser::parseIdentifierList(){
+    auto identifierlist = new IdentifierList();
+    match(Token::ID);
+    string id = previous->text;
+    identifierlist->lista_ids.push_back(id);
+    while (match(Token::ID)) {
+        id = previous->text;
+        identifierlist->lista_ids.push_back(id);
+    }
+
+    return identifierlist;
+}
+
+MethodDecl* Parser::parseMethodDecl(){
+    auto* methodDecl = new MethodDecl();
+    expect(Token::ID);
+    methodDecl->nombreId = previous->text;
+    if (match(Token::MUL)){
+        methodDecl->puntero = true;
+    }else {
+        methodDecl->puntero = false;
+    }
+    expect(Token::ID);
+    methodDecl->NombreTipoBase = previous->text;
+    expect(Token::RPAREN);
+    expect(Token::ID);
+    methodDecl->nombreMethod = previous->text;
+    expect(Token::LPAREN);
+    methodDecl->lista_de_parametros = parseParameterList();// nullptr manejo
+    expect(Token::RPAREN);
+    auto* t = parseType();
+    if (t != nullptr)
+        methodDecl->tipo = t;
+    else {
+        methodDecl->tipo = nullptr;
+    }
+    auto* bloque = parseBlock();
+    if (!bloque)
+        throw runtime_error("Error sintáctico necesita un cuerpo la función");
+
+    methodDecl->cuerpo = bloque;
+    return methodDecl;
+
+}
+FunctionDecl* Parser::parseFunctionDecl(){
+
+    auto* functionDecl = new FunctionDecl();
+    expect(Token::ID);
+    functionDecl->name = previous->text;
+    expect(Token::LPAREN);
+    functionDecl->lista_de_parametros = parseParameterList();
+    expect(Token::RPAREN);
+    Type* _tipo = parseType();// algo dudoso
+    if (_tipo != nullptr){
+        functionDecl->tipo = _tipo;
+    }
+    functionDecl->cuerpo = parseBlock();
+
+    return functionDecl;
+}
+Type* Parser::parseType(){
+
+    // Deudas de parseo
+    if (match(Token::ID))
+        return new BasicType(previous->text);
+    else if (match(Token::STRUCT)){
+        StructType* st = new StructType();
+        expect(Token::LLLAVE);
+        st->declaraciones.push_back(parseFieldDecl());
+        while (match(Token::PCOMMA)){
+            st->declaraciones.push_back(parseFieldDecl());
         }
-        lista->lista_tipos.push_back(parseType());
-    }
-    return lista;
-}
-
-Type* Parser::parseTypeLiteral() {
-
-    if (check(Token::LCORCHETE)) {
-        return parseArrayorSliceType();
-    }
-
-    if (check(Token::STRUCT)) {
-        return parseStructType();
-    }
-
-    if (check(Token::MUL)) {
-        return parsePointerType();
-    }
-
-    if (check(Token::FUNC)) {
-        return parseFunctionType();
-    }
-
-    if (check(Token::MAP)) {
-        return parseMapType();
-    }
-
-    if (check(Token::ARROW) || check(Token::CHAN)) {
-        return parseChannelType();
-    }
-
-    throw runtime_error("Literal de tipo no soportado o invalido");
-}
-
-
-TypeLiteral *Parser::parseArrayorSliceType() {
-    match(Token::LCORCHETE);
-    if (check(Token::RCORCHETE)) {
-        auto slice = parseSliceType();
-        return slice;
-    }
-    auto array = parseArrayType();
-    return array;
-}
-
-SliceType *Parser::parseSliceType() {
-    if (check(Token::RCORCHETE)) {
-        match(Token::RCORCHETE);
-        auto slice = new SliceType();
-        slice->elementtype = parseType();
-    } throw runtime_error ("Declaracion de slice invalida: falta ']' ");
-}
-
-ArrayType *Parser::parseArrayType() {
-    auto array = new ArrayType();
-    array->length = parseExpresion();
-
-    if (check(Token::RCORCHETE)){
-        match(Token::RCORCHETE);
+        expect(Token::RLLAVE);
+        return st;
+    }else if (match(Token::MUL)){
+        PointerType* pointer = new PointerType();
+        pointer->basetype = parseType();
+        return pointer;
+    }else if (match(Token::LCORCHETE)){
+        ArrayType* array = new ArrayType();
+        array->length = parseExp();
         array->elementtype = parseType();
+        expect(Token::RCORCHETE);
         return array;
-    } throw runtime_error("Falta un ']'");
-}
-
-
-StructType *Parser::parseStructType() {
-    auto struct_ = new StructType();
-    match(Token::STRUCT);
-    if (check(Token::LLLAVE)) {
-        match(Token::LLLAVE);
-
-        while (!check(Token::RLLAVE) && !isAtEnd()) {
-            FieldDecl* fd = parseFieldDecl();
-            struct_->declaraciones.push_back(fd);
-
-            if (check(Token::PCOMMA)) {
-                match(Token::PCOMMA);
-            }
-        }
-        if (check(Token::RLLAVE)) {
-            match(Token::RLLAVE);
-            return struct_;
-        } throw runtime_error ("Falta un '}'");
-    } throw runtime_error ("Falta un '{'");
-}
-
-FieldDecl *Parser::parseFieldDecl() {
-    auto field = new FieldDecl();
-    field->tiene_mul = false;
-
-    if (check(Token::MUL)) {
-        match(Token::MUL);
-        field->tiene_mul = true;
-        field->type = parseTypeName_TypeArgs();
-    }
-    else {
-        if (check(Token::ID)) {
-            field->identifierlist = parseIdentifierList();
-            if (check(Token::PCOMMA) || check(Token::RLLAVE) || check(Token::STRING_LIT)){
-                string nombre_tipo = field->identifierlist.front()->name;
-                field->identifierlist.clear();
-
-                auto tname = new TypeName();
-                tname->nombre = nombre_tipo;
-                tname->prefijo_paquete = "";
-
-                if (check(Token::LCORCHETE)) {
-                    auto targs = parseTypeArgs();
-                    field->type = new TypeName_TypeArgs(tname,targs);
-                } else {
-                    field->type = tname;
-                }
-            } else {
-                field->type = parseType();
-            }
-        } else {
-            throw runtime_error ("Declaracion invalida. Se esperaba un ID o '*'");
-        }
-    }
-    if (check(Token::STRING_LIT)) {
-        match(Token::STRING_LIT);
-        field->tag = previous->text;
-    }
-    return field;
-}
-
-PointerType *Parser::parsePointerType() {
-    match(Token::MUL);
-    auto puntero = new PointerType();
-    puntero->basetype = parseType();
-    return puntero;
-
-}
-
-FunctionType *Parser::parseFunctionType() {
-    match(Token::FUNC);
-    auto func = new FunctionType();
-    func->signature = parseSignature();
-    return func;
-}
-
-Signature *Parser::parseSignature() {
-    auto signature = new Signature();
-    if (check(Token::LPAREN)) {
-        match(Token::LPAREN);
-        while (!check(Token::RPAREN) && !isAtEnd()) {
-            signature->parameterlist.push_back(parseParameterDecl());
-            if (check(Token::COMMA)) match(Token::COMMA);
-        }
-        if (check(Token::RPAREN)) {
-            match(Token::RPAREN);
-        } else {
-            throw runtime_error ("Falta un ')' en la firma de la funcion");
-        }
-    } else {
-        throw runtime_error ("Falta un '(' en la firma de la funcion");
+    }else {
+        return nullptr; // Vacio
     }
 
-    if (check(Token::LPAREN)) {
-        match(Token::LPAREN);
-        while (!check(Token::RPAREN) && !isAtEnd()) {
-            signature->result_parameters.push_back(parseParameterDecl());
-            if (check(Token::COMMA)) match(Token::COMMA);
-        }
-        if (check(Token::RPAREN)) {
-            match(Token::RPAREN);
-        } else {
-            throw runtime_error ("Se esperaba ')' al cerrar los retornos.");
-        }
-    } else {
-        if (!check(Token::LLLAVE) && !check(Token::PCOMMA) && !check(Token::RLLAVE)
-            && !check(Token::COMMA) && !check(Token::RPAREN)) {
-            auto ret = new ParameterDecl();
-            ret->type = parseType();
-            signature->result_parameters.push_back(ret);
-        }
-    }
-    return signature;
 }
 
-ParameterDecl *Parser::parseParameterDecl() {
-    auto param = new ParameterDecl();
+ParameterList* Parser::parseParameterList(){
+    ParameterList* lista_parametros = new ParameterList();
 
-    if (match(Token::TRES_PUNTOS)) {
-        param->es_variadico = true;
+    ParameterDecl* declaracion = parseParameterDecl();
+    lista_parametros->parameterList.push_back(declaracion);
+    while (match(Token::COMMA)) {
+        declaracion = parseParameterDecl();
+        lista_parametros->parameterList.push_back(declaracion);
     }
-    if (check(Token::ID)) {
-        param->identifierlist = parseIdentifierList();
 
-        if (check(Token::COMMA) || check(Token::RPAREN)) {
-            string nombreTipo = param->identifierlist.front()->name;
-            param->identifierlist.clear();
-
-            auto tname = new TypeName();
-            tname->nombre = nombreTipo;
-            param->type = tname;
-        }
-        else {
-            if (match(Token::TRES_PUNTOS)) {
-                param->es_variadico = true;
-            }
-            param->type = parseType();
-        }
-    }
-    else {
-        param->type = parseType();
-    }
-    return param;
+    return lista_parametros;
 }
 
-MapType *Parser::parseMapType() {
-    match(Token::MAP);
-    if (check(Token::LCORCHETE)) {
-        match(Token::LCORCHETE);
-        auto map = new MapType();
-        map->keytype = parseType();
-        if (check(Token::RCORCHETE)) {
-            match(Token::RCORCHETE);
-            map->elementtype = parseType();
-            return map;
-        } throw runtime_error ("Declaracion de map invalida: falta ']' ");
-    } throw runtime_error ("Declaracion de map invalida: falta '[' ");
+ParameterDecl* Parser::parseParameterDecl(){
+    ParameterDecl* parameterDecl = new ParameterDecl();
+    parameterDecl->identifierlist = parseIdentifierList();
+    parameterDecl->type = parseType();
+    return parameterDecl;
 }
-
-ChannelType *Parser::parseChannelType() {
-    if (check(Token::CHAN)) {
-        match(Token::CHAN);
-        if (check(Token::ARROW)) {
-            match(Token::ARROW);
-        }
-        auto channel = new ChannelType();
-        channel->elementtype = parseType();
-        return channel;
-    } else if (check(Token::ARROW)){
-        match(Token::ARROW);
-        auto channel = new ChannelType();
-        channel->elementtype = parseType();
-        return channel;
-    } else {
-        throw runtime_error(" Declaracion de arrow invalida ");
-    }
+FieldDecl* Parser::parseFieldDecl(){
+    FieldDecl* fieldDecl = new FieldDecl();
+    fieldDecl->identifierlist = parseIdentifierList();
+    fieldDecl->type = parseType();
+    return fieldDecl;
 }
-
-ExpList *Parser::parseExpList() {
-
-}
-::
-
 
 // ----------------------------------------------------------------------
 // Parte Bruno: Blocks y Statements
@@ -442,7 +370,7 @@ Stmt *Parser::parseStmt() {
 
     auto expresion_list = parseExpList();
     if (check(Token::INC) || check(Token::DEC)) {
-        return parseIncDecStmt(expresion_list->expressions[0]);
+        return parseIncDecStmt(expresion_list->lista_exp[0]);
     }
 
     if (check(Token::PLUSASSIGN) || check(Token::NEGASSIGN) ||
@@ -450,7 +378,7 @@ Stmt *Parser::parseStmt() {
         return parseAssigment(expresion_list);
     }
 
-    return parseExpresionStmt(expresion_list->expressions[0]);
+    return parseExpresionStmt(expresion_list->lista_exp[0]);
 
 }
 
@@ -502,9 +430,12 @@ Assigment *Parser::parseAssigment(ExpList* el) {
     } else if (check(Token::MULASSIGN)) {
         match(Token::MULASSIGN);
         ops = MUL_ASSIGN;
-    } else {
+    } else if (check(Token::DIVASSIGN)){
         match(Token::DIVASSIGN);
         ops = DIV_ASSIGN;
+    } else {
+        match(Token::ASSIGN);
+        ops = ASSIGN;
     }
     assignment->op = ops;
     assignment->expresion_list_values = parseExpList();
@@ -541,7 +472,7 @@ IfStmt *Parser::parseIfStmt() {
         match(Token::ELSE);
         if (check(Token::LLLAVE)) {
             if_stmt->cuerpo_else = parseBlock();
-            if_stmt->cuerpo_if = nullptr;
+            if_stmt->if_anidado = nullptr;
         } else {
             if_stmt->cuerpo_else = nullptr;
             if_stmt->if_anidado = parseIfStmt();
@@ -587,19 +518,47 @@ ExpCaseClause *Parser::parseExpCaseClause() {
 ForStmt *Parser::parseForStmt() {
     match(Token::FOR);
     auto for_stmt = new ForStmt();
+    // Caso 1: for  {...}
     if (check(Token::LLLAVE)) {
         for_stmt->block = parseBlock();
         return for_stmt;
     }
-
-    // falta el or ese
-
+    // Caso 2: Es un for clause por que encontramos un ; o un = o un , despues de la expresión
+    auto primera_exp = parseExp();
+    if (check(Token::PCOMMA) || check(Token::EQUAL) || check(Token::COMMA)) {
+        for_stmt->for_clause = parseForClause(primera_exp);
+    }
+    // Caso 3: Es una expresion condicional
+    else {
+        for_stmt->expresion = primera_exp;
+    }
     for_stmt->block = parseBlock();
     return for_stmt;
 }
 
-ForClause *Parser::parseForClause() {
-    // falta coso
+ForClause *Parser::parseForClause(Exp* primera_exp) {
+    auto clause = new ForClause();
+    if (!check(Token::PCOMMA)) {
+        auto el1 = new ExpList();
+        el1->lista_exp.push_back(primera_exp);
+        clause->asignacion1 = parseAssigment(el1);
+    }
+    match(Token::PCOMMA);
+    if (!check(Token::PCOMMA)) {
+        clause->expresion = parseExp();
+    }
+    match(Token::PCOMMA);
+    if (!check(Token::LLLAVE)) {
+        auto tercera_exp = parseExp();
+        if (check(Token::INC) || check(Token::DEC)) {
+            clause->inc_dec_stmt = parseIncDecStmt(tercera_exp);
+        } else {
+            auto el2 = new ExpList();
+            el2->lista_exp.push_back(tercera_exp);
+            clause->asignacion2 = parseAssigment(el2);
+        }
+    }
+    return clause;
 }
 
 // ----------------------------------------------------------------------

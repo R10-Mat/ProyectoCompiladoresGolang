@@ -1,29 +1,84 @@
-program   stmt*
+https://go.dev/ref/spec
 
-stmt decl_stmt | assign_stmt | block_stmt | expr_stmt
 
-decl_stmt   type ID [ '=' expr ] ';' | 'auto' ID '=' expr ';'
+Program       =  { TopLevelDecl ";"} .
+TopLevelDecl  = Declaration | FunctionDecl | MethodDecl .
 
-type        -> 'int' | 'float' | 'double' | 'char' | 'bool' 
+Declaration   = ConstDecl | TypeDecl | VarDecl .
 
-assign_stmt ID '=' expr ';' | ID op_assign expr ';' | ID('++'|'--') ';'
+ConstDecl     = "const" ( ConstSpec | "(" { ConstSpec ";" } ")" ) . (manejar si no envían un id en identifierlist)
+ConstSpec     = IdentifierList [ Type ] "=" ExpressionList .
 
-op_assign   -> '+=' | '-=' | '*=' | '/=' | '%='
+TypeDecl      = "type" ( TypeSpec | "(" { TypeSpec ";" } ")" ) .
+TypeSpec      = id Type .
 
-block_stmt  -> '{' stmt* '}'
+VarDecl       = "var" ( VarSpec | "(" { VarSpec ";" } ")" ) .
+VarSpec       = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
 
-expr_stmt   -> cexpr ';'
+IdentifierList = id { "," id } .
+ExpressionList = Expression { "," Expression } .
 
-cexpr       -> expr && expr | expr || expr
+Type          = id | BasicType | ArrayType | StructType | PointerType .
+BasicType     = "int" | "float64" | "bool" | "string" .
+ArrayType     = "[" int_lit "]" Type .
+PointerType   = "*" Type .
+StructType    = "struct" "{" { FieldDecl ";" } "}" .
+FieldDecl     = IdentifierList Type .
 
-expr        -> term == term | term <= term | term >= term | term != term | term < term | term > term
+FunctionDecl  = "func" id "(" [ ParameterList ] ")" [ Type ] Block .
+MethodDecl    = "func" "(" id [ "*" ] id ")" id "(" [ ParameterList ] ")" [ Type ] Block .
 
-term        -> factor + factor | factor - factor 
+ParameterList = ParameterDecl { "," ParameterDecl } .
+ParameterDecl = IdentifierList Type .
 
-factor        -> unary '*' unary | unary '/' unary | unary '%' unary | unary
+Block         = "{" StatementList "}" .
+StatementList = { Statement ";" } .
 
-unary       -> '-' unary | '!' unary | primary
+Statement     = Declaration
+              | Block
+              | ExpressionStmt
+              | IncDecStmt
+              | Assignment
+              | ReturnStmt
+              | BreakStmt
+              | ContinueStmt
+              | IfStmt
+              | SwitchStmt
+              | ForStmt .
 
-primary     -> NUMBER | STRING | BOOL | ID | '(' expr ')'
+ExpressionStmt = Expression .
+IncDecStmt    = Expression ( "++" | "--" ) .
+Assignment    = ExpressionList [ ( "+" | "-" | "*" | "/" ) ] "=" ExpressionList .
+ReturnStmt    = "return" [ ExpressionList ] .
+BreakStmt     = "break" .
+ContinueStmt  = "continue" .
+IfStmt        = "if" Expression Block [ "else" ( IfStmt | Block ) ] .
+SwitchStmt    = "switch" [ Expression ] "{" { ExprCaseClause } "}" .
+    ExprCaseClause = "case" ExpressionList ":" StatementList | "default" ":" StatementList .
+ForStmt       = "for" [ Expression | ForClause ] Block .
+    ForClause     = [ Assignment ] ";" [ Expression ] ";" [ Assignment | IncDecStmt ] .
 
-NUMBER      -> INT | FLOAT
+Expression     = RelationalExpr .|| PrimaryExpr
+
+RelationalExpr = AdditiveExpr { rel_op AdditiveExpr } .
+AdditiveExpr   = MultiplicativeExpr { add_op MultiplicativeExpr } .
+MultiplicativeExpr = UnaryExpr { mul_op UnaryExpr } .
+UnaryExpr      = unary_op UnaryExpr | PrimaryExpr .
+PrimaryExpr    = Operand { Selector | Index | Arguments } .
+
+Selector       = "." id .
+Index          = "[" Expression "]" .
+Arguments      = "(" [ ExpressionList ] ")" .
+
+Operand        = id | BasicLit | CompositeLit | "(" Expression ")" .
+BasicLit       = int_lit | float_lit | string_lit | bool_lit .Z
+
+CompositeLit   = Type "{" [ ElementList ] "}" .
+ElementList    = KeyedElement { "," KeyedElement } .
+KeyedElement   = [ id ":" ] Expression .
+
+rel_op   = "==" | "!=" | "<" | "<=" | ">" | ">=" .
+add_op   = "+" | "-" | "||" .
+mul_op   = "*" | "/" | "%" | "&&" .
+unary_op = "+" | "-" | "!" | "*" | "&" .
+bool_lit = "true" | "false" .

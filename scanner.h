@@ -13,7 +13,7 @@ private:
     int line;
 public:
     // Constructor
-    Scanner(const char* in_s);
+    explicit Scanner(const char* in_s);
 
     // Retorna el siguiente token
     Token* nextToken();

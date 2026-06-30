@@ -6,12 +6,10 @@
 #include <ostream>
 #include <vector>
 
-#include "ast.h"
-#include "ast.h"
-#include "ast.h"
-#include "ast.h"
-#include "token.h"
+#include "visitor.h"
+#include "Semantic_types.h"
 
+class ExpList;
 class ForClause;
 class ExpCaseClause;
 class TypeTerm;
@@ -26,6 +24,16 @@ class FieldDecl;
 class Exp;
 class StmtList;
 class Block;
+class IdentifierList;
+class TopLevelDecl;
+class Declaration;
+class FunctionDecl;
+class MethodDecl;
+class ParameterList;
+class Type;
+class TypeSpec;
+class ConstSpec;
+class VarSpec;
 using namespace std;
 
 class Visitor; 
@@ -38,7 +46,7 @@ enum BinaryOp {
 };
 
 enum AssignOp {
-    PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN, DIV_ASSIGN
+    PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, ASSIGN
 };
 
 enum UnaryOp {
@@ -54,62 +62,130 @@ enum UnaryOp {
 
 class Programa {
 public:
-    Block* bloque;
+    list<TopLevelDecl*> listatopleveldecl;
     void accept(Visitor* visitor);
     ~Programa();
     Programa();
 };
 
-// -------------- Types -----------------------
+class TopLevelDecl {
+public: 
+    virtual void accept(Visitor* visitor);
+    virtual ~TopLevelDecl();
+    
+};
+
+class Declaration : public TopLevelDecl {
+public:
+    virtual void accept(Visitor* visitor);
+    virtual ~Declaration();
+};
+class FunctionDecl : public TopLevelDecl {
+public:
+    string name;
+    ParameterList* lista_de_parametros;
+    Type* tipo;
+    Block* cuerpo;
+    void accept(Visitor* visitor);
+    FunctionDecl();
+    ~FunctionDecl();
+};
+class MethodDecl : public TopLevelDecl {
+public:
+
+    ParameterList* lista_de_parametros;
+    Type* tipo;
+    Block* cuerpo;
+    string nombreMethod;
+    string nombreId;
+    bool puntero;
+    string NombreTipoBase;
+    void accept(Visitor* visitor);
+    MethodDecl();
+    ~MethodDecl();
+
+};
+
+class ConstDecl : public Declaration {
+public:
+    list<ConstSpec*> constspecList;
+    void accept(Visitor* visitor) override;
+    ConstDecl();
+    ~ConstDecl();
+};
+
+class ConstSpec {
+public:
+    IdentifierList* identifierList;
+    Type* tipo;
+    ExpList* expresionlist;
+    void accept(Visitor* visitor);
+    ConstSpec();
+    ~ConstSpec();
+};
+
+class TypeDecl : public Declaration {
+public:
+    list<TypeSpec*> typespecList;
+    void accept(Visitor* visitor) override;
+    TypeDecl();
+    ~TypeDecl();
+};
+
+class TypeSpec {
+public:
+    string id;
+    Type* tipo;
+    void accept(Visitor* visitor);
+    TypeSpec();
+    ~TypeSpec();
+};
+
+class VarDecl : public Declaration {
+public:
+    list<VarSpec*> varspecList;
+    void accept(Visitor* visitor) override;
+    VarDecl();
+    ~VarDecl();
+};
+
+class VarSpec {
+public:
+
+    IdentifierList* identifierlist; 
+    Type* tipo;
+    ExpList* expresionlist;
+    void accept(Visitor* visitor);
+    VarSpec();
+    ~VarSpec();
+};
+
+class FieldDecl {
+public:
+    IdentifierList* identifierlist; 
+    Type* type;
+    void accept(Visitor* visitor);
+    FieldDecl();
+    ~FieldDecl() = default;
+};
+
 class Type {
 public:
     virtual void accept(Visitor* visitor);
     virtual ~Type() = default;
 };
 
-class TypeName_TypeArgs : public Type {
+class BasicType : public Type{
 public:
-    TypeName* nombres;
-    TypeArgs* argumentos;
-    void accept(Visitor *visitor) override;
-    TypeName_TypeArgs();
 
-    TypeName_TypeArgs(TypeName * tname, TypeArgs * targs);
-    ~TypeName_TypeArgs() override;
+    string tipo;
+    void accept(Visitor* visitor) override;
+  
+    BasicType(string t);
+    ~BasicType();
 };
 
-class TypeName: public Type {
-public:
-    string nombre;
-    string prefijo_paquete;
-    void accept(Visitor *visitor) override;
-    TypeName();
-    ~TypeName() override;
-};
-
-class TypeArgs: public Type {
-public:
-    TypeList* lista;
-    void accept(Visitor *visitor) override;
-    TypeArgs();
-    ~TypeArgs() override;
-};
-
-class TypeList: public Type {
-public:
-    list<Type*> lista_tipos;
-    void accept(Visitor *visitor) override;
-    TypeList();
-    ~TypeList() override;
-};
-
-class TypeLiteral: public Type {
-public:
-    void accept(Visitor *visitor) override;
-    ~TypeLiteral() = default;
-};
-
-class ArrayType: public TypeLiteral {
+class ArrayType: public Type {
 public:
     Exp* length;
     Type* elementtype;
@@ -118,25 +194,16 @@ public:
     ~ArrayType() = default;
 };
 
-class StructType: public TypeLiteral {
+class StructType: public Type {
 public:
     list<FieldDecl*> declaraciones;
     void accept(Visitor *visitor) override;
     StructType();
-    ~StructType() = default;
+    ~StructType();
 };
 
-class FieldDecl {
-public:
-    list<IdExp*> identifierlist;
-    Type* type;
-    bool tiene_mul;
-    string tag;
-    FieldDecl();
-    ~FieldDecl() = default;
-};
 
-class PointerType: public TypeLiteral {
+class PointerType: public Type {
 public:
     Type* basetype;
     void accept(Visitor *visitor) override;
@@ -144,99 +211,37 @@ public:
     ~PointerType() override;
 };
 
-class FunctionType: public TypeLiteral {
+class ParameterList {
 public:
-    Signature* signature;
-    void accept(Visitor *visitor) override;
-    FunctionType();
-    ~FunctionType() override;
+    list<ParameterDecl*> parameterList;
+    void accept(Visitor* visitor);
+    ParameterList();
+    ~ParameterList();
 };
 
-class Signature {
-public:
-    list<ParameterDecl*> parameterlist;
-    list<ParameterDecl*> result_parameters;
-    void accept(Visitor *visitor);
-    Signature();
-    ~Signature();
-};
 
 class ParameterDecl {
 public:
-    list<IdExp*> identifierlist;
+    IdentifierList* identifierlist;
     Type* type;
-    bool es_variadico;
-
+    void accept(Visitor* visitor);
     ParameterDecl();
     ~ParameterDecl();
 };
 
-class InterfaceType: public TypeLiteral {
+class IdentifierList {
 public:
-    list<InterfaceElem*> elementos;
-    void accept(Visitor *visitor) override;
-    InterfaceType();
-    ~InterfaceType() override;
-};
-
-class InterfaceElem {
-    virtual ~InterfaceElem() = default;
-    virtual void accept(Visitor* visitor) = 0;
-};
-
-class MethodElem: public InterfaceElem {
-public:
-    string identifier;
-    Signature* signature;
-    void accept(Visitor *visitor) override;
-    MethodElem();
-    ~MethodElem() override;
-};
-
-class TypeElem: public InterfaceElem {
-    list<TypeTerm> terminos;
-    TypeElem();
-    ~TypeElem() override;
-    void accept(Visitor *visitor) override;
-};
-
-class TypeTerm {
-    bool tiene_underline;
-    Type* tipo;
+    list<string> lista_ids;
     void accept(Visitor* visitor);
-    TypeTerm();
-    ~TypeTerm();
+    IdentifierList();
+    ~IdentifierList();
 };
-
-class SliceType: public TypeLiteral {
-public:
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    SliceType();
-    ~SliceType() override;
-};
-
-class ChannelType: public TypeLiteral {
-public:
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    ChannelType();
-    ~ChannelType() override;
-};
-
-class MapType: public TypeLiteral {
-public:
-    Type* keytype;
-    Type* elementtype;
-    void accept(Visitor *visitor) override;
-    MapType();
-    ~MapType() override;
-};
-
 class ExpList {
 public:
-    vector<Exp*> expressions;
-
+    vector<Exp*> lista_exp;
+    Semantic_types accept(Visitor* visitor);
+    ExpList();
+    ~ExpList();
 };
 
 // ----------------------------------------------------------------------
@@ -245,7 +250,7 @@ public:
 class Block {
 public:
     StmtList* lista_statements;
-    void accept(Visitor* visitor);
+    Semantic_types accept(Visitor* visitor);
     Block();
     ~Block();
 };
@@ -253,49 +258,48 @@ public:
 class StmtList {
 public:
     list<Stmt*> statements;
-    void accept(Visitor* visitor);
+    Semantic_types accept(Visitor* visitor);
     StmtList();
     ~StmtList();
 };
 
 class Stmt{
 public:
-    virtual void accept(Visitor* visitor) = 0;
+    virtual Semantic_types accept(Visitor* visitor) = 0;
     virtual ~Stmt() = 0;
 };
 
 class DeclarationStmt: public Stmt {
 public:
     Declaration* declaration;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     DeclarationStmt();
-    ~DeclarationStmt();
+    ~DeclarationStmt() override;
 };
-
 
 class BlockStmt : public Stmt {
 public:
     Block* block;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     BlockStmt();
-    ~BlockStmt();
+    ~BlockStmt() override;
 };
 
 class ExpresionStmt : public Stmt {
 public:
     Exp* expresion;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ExpresionStmt();
-    ~ExpresionStmt();
+    ~ExpresionStmt() override;
 };
 
 class IncDecStmt : public Stmt {
 public:
     Exp* expresion;
     UnaryOp op;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     IncDecStmt();
-    ~IncDecStmt();
+    ~IncDecStmt() override;
 };
 
 class Assigment : public Stmt {
@@ -303,31 +307,31 @@ public:
     ExpList* expresion_list_id;
     ExpList* expresion_list_values;
     AssignOp op;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     Assigment();
-    ~Assigment();
+    ~Assigment() override;
 };
 
 class ReturnStmt : public Stmt {
 public:
     ExpList* expresion_list;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ReturnStmt();
-    ~ReturnStmt();
+    ~ReturnStmt() override;
 };
 
 class BreakStmt: public Stmt {
 public:
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     BreakStmt();
-    ~BreakStmt();
+    ~BreakStmt() override;
 };
 
 class ContinueStmt: public Stmt {
 public:
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ContinueStmt();
-    ~ContinueStmt();
+    ~ContinueStmt() override;
 };
 
 class IfStmt: public Stmt {
@@ -336,25 +340,25 @@ public:
     Block* cuerpo_if;
     Block* cuerpo_else;
     IfStmt* if_anidado;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     IfStmt();
-    ~IfStmt();
+    ~IfStmt() override;
 };
 
 class SwitchStmt: public Stmt {
 public:
     Exp* expresion;
     list<ExpCaseClause*> exp_case_clause;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     SwitchStmt();
-    ~SwitchStmt();
+    ~SwitchStmt() override;
 };
 
 class ExpCaseClause {
 public:
     ExpList* expresion_list;
     StmtList* statement_list;
-    void accept(Visitor *visitor);
+    Semantic_types accept(Visitor *visitor);
     ExpCaseClause();
     ~ExpCaseClause();
 };
@@ -364,9 +368,9 @@ public:
     Exp* expresion;
     ForClause* for_clause;
     Block* block;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ForStmt();
-    ~ForStmt();
+    ~ForStmt() override;
 };
 
 class ForClause {
@@ -375,17 +379,17 @@ public:
     Exp* expresion;
     Assigment* asignacion2;
     IncDecStmt* inc_dec_stmt;
-    void accept(Visitor *visitor);
+    Semantic_types accept(Visitor *visitor);
     ForClause();
     ~ForClause();
 };
 
 // ----------------------------------------------------------------------
-// Parte Nico: Expresions
+// Parte Nico: Expresion , en proceso
 // ----------------------------------------------------------------------
 class Exp {
 public:
-    virtual void accept(Visitor* visitor) = 0;
+    virtual Semantic_types accept(Visitor* visitor) = 0;
     virtual ~Exp() = 0;
     static string binopToString(BinaryOp op);
     static string unopToString(UnaryOp op);
@@ -396,7 +400,7 @@ public:
     Exp*     left;
     Exp*     right;
     BinaryOp op;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     BinaryExp(Exp* _left, Exp* _right, BinaryOp _op);
     ~BinaryExp();
 };
@@ -406,7 +410,7 @@ public:
     Exp*    exp;
     UnaryOp op;
     bool    postfix;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     UnaryExp(Exp* _exp, UnaryOp _op, bool _postfix = false);
     ~UnaryExp();
 };
@@ -414,7 +418,7 @@ public:
 class IntExp : public Exp {
 public:
     int value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     IntExp(int v);
     ~IntExp();
 };
@@ -422,8 +426,8 @@ public:
 class IdExp : public Exp {
 public:
     string name;
-    void accept(Visitor* visitor) override;
-    IdExp();
+    Semantic_types accept(Visitor* visitor) override;
+    IdExp(string _name);
     ~IdExp();
 };
 
@@ -431,14 +435,14 @@ class QualifiedIdent : public Exp {
 public:
     Exp* prefijo;
     string subfijo;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     QualifiedIdent();
     ~QualifiedIdent();
 };
 class FloatExp : public Exp {
 public:
     float value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     FloatExp(float v);
     ~FloatExp();
 };
@@ -446,7 +450,7 @@ public:
 class BoolExp : public Exp {
 public:
     bool value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     BoolExp(bool v);
     ~BoolExp();
 };
@@ -455,7 +459,7 @@ public:
 class StringExp : public Exp {
 public:
     string value;
-    void accept(Visitor* visitor) override;
+    Semantic_types accept(Visitor* visitor) override;
     StringExp(string v);
     ~StringExp();
 };

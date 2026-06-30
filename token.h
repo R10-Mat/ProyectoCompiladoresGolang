@@ -102,10 +102,11 @@ public:
     string text;
     int line;   
 
-    Token(Type type, int line = 0);
+    explicit Token(Type type, int line = 0);
     Token(Type type, char c, int line = 0);
     Token(Type type, const string& source, int first, int last, int line = 0);
 
+    static std::string typeName(Type t);
     friend ostream& operator<<(ostream& outs, const Token& tok);
     friend ostream& operator<<(ostream& outs, const Token* tok);
 };

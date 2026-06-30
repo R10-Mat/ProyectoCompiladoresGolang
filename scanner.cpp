@@ -68,10 +68,12 @@ Token* Scanner::nextToken() {
     first = current;
 
     if (isdigit(c) || (c == '.' && current + 1 < input.length() && isdigit(input[current + 1]))) {
-        return token = readNumberToken();
+        token = readNumberToken();
+        return token;
     }
     else if (c == '"' || c == '`') {
-        return token = readStringToken();
+        token = readStringToken();
+        return token;
     }
     else if (isalpha(c) || c == '_') {
         current++;
@@ -144,7 +146,7 @@ Token* Scanner::nextToken() {
                 else if (current + 1 < input.length() && input[current + 1] == '=') {
                     current++;
                     token = new Token(Token::DIVASSIGN, input, first, current + 1, line);
-                }  token = new Token(Token::DIV, c, line);
+                } else  token = new Token(Token::DIV, c, line);
                 break;
             case '%':
                 if (current + 1  < input.length() && input[current+1] == '=' ) {

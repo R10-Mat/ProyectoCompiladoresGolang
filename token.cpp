@@ -99,6 +99,7 @@ static const char* typeName(Token::Type t) {
         case Token::RUNE_LIT:           return "RUNE_LIT";
         case Token::STRING_LIT:         return "STRING_LIT";
 
+
         // System / Errors
         case Token::ERROR:              return "ERROR";
         case Token::END:                return "END";
