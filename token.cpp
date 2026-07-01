@@ -11,7 +11,7 @@ Token::Token(Type type, char c, int line) : type(type), text(string(1, c)), line
 Token::Token(Type type, const string& source, int first, int last, int line) : type(type), text(source.substr(first, last - first)), line(line) { }
 
 
-static const char* typeName(Token::Type t) {
+std::string Token::typeName(Token::Type t) {
     switch (t) {
         // identifiers
         case Token::ID:                 return "ID";
@@ -112,9 +112,9 @@ ostream& operator<<(ostream& outs, const Token& tok) {
     if (tok.type == Token::END) {
         outs << "TOKEN(END)";
     } else if (tok.text.empty()) {
-        outs << "TOKEN(" << typeName(tok.type) << ")";
+        outs << "TOKEN(" << Token::typeName(tok.type) << ")";
     } else {
-        outs << "TOKEN(" << typeName(tok.type) << ", \"" << tok.text << "\")";
+        outs << "TOKEN(" << Token::typeName(tok.type) << ", \"" << tok.text << "\")";
     }
     if (tok.line > 0){
         outs << " [line " << tok.line << "]";

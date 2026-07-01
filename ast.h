@@ -401,83 +401,6 @@ public:
     Exp*     left;
     Exp*     right;
     BinaryOp op;
-    Semantic_types accept(Visitor* visitor) override;
-    BinaryExp(Exp* _left, Exp* _right, BinaryOp _op);
-    ~BinaryExp();
-};
-
-class UnaryExp : public Exp {
-public:
-    Exp*    exp;
-    UnaryOp op;
-    bool    postfix;
-    Semantic_types accept(Visitor* visitor) override;
-    UnaryExp(Exp* _exp, UnaryOp _op, bool _postfix = false);
-    ~UnaryExp();
-};
-
-class IntExp : public Exp {
-public:
-    int value;
-    Semantic_types accept(Visitor* visitor) override;
-    IntExp(int v);
-    ~IntExp();
-};
-
-class IdExp : public Exp {
-public:
-    string name;
-    Semantic_types accept(Visitor* visitor) override;
-    IdExp(string _name);
-    ~IdExp();
-};
-
-class QualifiedIdent : public Exp {
-public:
-    Exp* prefijo;
-    string subfijo;
-    Semantic_types accept(Visitor* visitor) override;
-    QualifiedIdent();
-    ~QualifiedIdent();
-};
-class FloatExp : public Exp {
-public:
-    float value;
-    Semantic_types accept(Visitor* visitor) override;
-    FloatExp(float v);
-    ~FloatExp();
-};
-
-class BoolExp : public Exp {
-public:
-    bool value;
-    Semantic_types accept(Visitor* visitor) override;
-    BoolExp(bool v);
-    ~BoolExp();
-};
-
-
-class StringExp : public Exp {
-public:
-    string value;
-    Semantic_types accept(Visitor* visitor) override;
-    StringExp(string v);
-    ~StringExp();
-};
-
-class Exp {
-public:
-    virtual Semantic_types accept(Visitor* visitor) = 0;
-    virtual ~Exp() = 0;
-    static string binopToString(BinaryOp op);
-    static string unopToString(UnaryOp op);
-};
-
-class BinaryExp : public Exp {
-public:
-    Exp*     left;
-    Exp*     right;
-    BinaryOp op;
 
     BinaryExp(Exp* left, Exp* right, BinaryOp op);
     ~BinaryExp();
@@ -564,6 +487,7 @@ public:
     Exp*   expresion;
     string campo;
 
+    SelectorExp(){};
     SelectorExp(Exp* expresion, const string& campo);
     ~SelectorExp();
     Semantic_types accept(Visitor* visitor) override;

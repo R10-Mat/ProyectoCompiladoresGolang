@@ -79,7 +79,6 @@ public:
     Exp* compositeLiteralParseExp();
     FunctionLit* functionLiteralParseExp();
     Exp* basicLiteralParseExp();
-    Exp* primaryParseExp();
 };
 
 #endif // PARSER_H
