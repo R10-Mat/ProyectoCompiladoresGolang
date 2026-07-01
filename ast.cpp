@@ -145,13 +145,13 @@ TypeAssertionExp::~TypeAssertionExp() {
     delete tipo;
 }
 
-ArgumentsExp::ArgumentsExp(Exp* funcion, vector<Exp*> args, bool variadic) : funcion(funcion), args(move(args)), variadic(variadic) {}
+ArgumentsExp::ArgumentsExp(Exp* funcion, ExpList* args, bool variadic) : funcion(funcion), args(args), variadic(variadic) {}
 
 ArgumentsExp::ArgumentsExp() : funcion(nullptr), args(), variadic(false) {}
 
 ArgumentsExp::~ArgumentsExp() {
     delete funcion;
-    for (Exp* arg : args) delete arg;
+    delete args;
 }
 
 IndexExp::IndexExp(Exp* expresion, Exp* indice) : expresion(expresion), indice(indice) {}

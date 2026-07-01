@@ -317,8 +317,14 @@ FieldDecl* Parser::parseFieldDecl(){
     return fieldDecl;
 }
 
-
-
+ExpList *Parser::parseExpList() {
+    auto a = new ExpList();
+    a->lista_exp.push_back(parseExp());
+    while (match(Token::COMMA)) {
+        a->lista_exp.push_back(parseExp());
+    }
+    return a;
+}
 // ----------------------------------------------------------------------
 // Parte Bruno: Blocks y Statements
 // ----------------------------------------------------------------------
@@ -690,7 +696,7 @@ Exp* Parser::primaryParseExp() {
             call->funcion = base;
 
             if (!check(Token::RPAREN)) {
-                call->args = parseExpressionList();
+                call->args = parseExpList();
                 match(Token::COMMA);
             }
 
@@ -703,18 +709,6 @@ Exp* Parser::primaryParseExp() {
     }
 
     return base;
-}
-
-vector<Exp*> Parser::parseExpressionList() {
-    vector<Exp*> lista;
-    
-    lista.push_back(parseExp());
-    
-    while (match(Token::COMMA)) {
-        lista.push_back(parseExp());
-    }
-    
-    return lista;
 }
 
 Exp* Parser::parseUnaryExpr() {

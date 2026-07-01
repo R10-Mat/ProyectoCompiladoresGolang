@@ -17,12 +17,9 @@ private:
 public:
     Parser(Scanner* scanner);           
 
-
     // ----------------------------------------------------------------------
     // Parte Rayhan: global y types
     // ----------------------------------------------------------------------
-    
-    
     Programa* parseProgram();
     TopLevelDecl* parseTopLevelDecl();
     Declaration* parseDeclaration();
@@ -39,12 +36,8 @@ public:
     ExpList* parseExpList();
     ParameterList* parseParameterList();
     ParameterDecl* parseParameterDecl();
-    ArrayType* parseArrayType();
-    StructType* parseStructType();
-    PointerType* parsePointerType();
     FieldDecl* parseFieldDecl();
-
-    
+    // ----------------------------------------------------------------------
     // Parte Bruno: Blocks y Statements
     // ----------------------------------------------------------------------
     Block* parseBlock();
@@ -72,7 +65,6 @@ public:
     Exp* additiveParseExp();
     Exp* multiplicateParseExp();
     Exp* primaryParseExp();
-    vector<Exp*> parseExpressionList();
     Exp* parseUnaryExpr();
     Exp* operandParseExp();
     vector<KeyedElement*> parseLiteralValue();

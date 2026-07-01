@@ -531,10 +531,10 @@ public:
 class ArgumentsExp : public Exp {
 public:
     Exp*         funcion;
-    vector<Exp*> args;
+    ExpList* args;
     bool         variadic;
 
-    ArgumentsExp(Exp* funcion, vector<Exp*> args, bool variadic);
+    ArgumentsExp(Exp* funcion, ExpList* args, bool variadic);
     ArgumentsExp();
     ~ArgumentsExp();
     Semantic_types accept(Visitor* visitor) override;
