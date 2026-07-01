@@ -71,7 +71,7 @@ Index          = "[" Expression "]" .
 Arguments      = "(" [ ExpressionList ] ")" .
 
 Operand        = id | BasicLit | CompositeLit | "(" Expression ")" .
-BasicLit       = int_lit | float_lit | string_lit | bool_lit .Z
+BasicLit       = int_lit | float_lit | string_lit | bool_lit .
 
 CompositeLit   = Type "{" [ ElementList ] "}" .
 ElementList    = KeyedElement { "," KeyedElement } .
@@ -82,3 +82,45 @@ add_op   = "+" | "-" | "||" .
 mul_op   = "*" | "/" | "%" | "&&" .
 unary_op = "+" | "-" | "!" | "*" | "&" .
 bool_lit = "true" | "false" .
+
+===========================================================================
+Notas de implementacion (parser.cpp / ast.h / ast.cpp / Semantic_types.h)
+===========================================================================
+
+1. ";" es terminador, no separador.
+   Toda regla de la forma "{ X ";" }" (Program, StatementList, y los
+   grupos entre parentesis de ConstDecl/TypeDecl/VarDecl/StructType) exige
+   un ";" DESPUES de cada X, incluido el ultimo antes del "}" / fin de
+   archivo. No hay insercion automatica de punto y coma como en Go real.
+
+2. Punteros y direccionamiento de memoria.
+   unary_op ya incluye "*" (dereferencia, UnaryOp::DEREF_OP) y "&"
+   (direccion de memoria, UnaryOp::ADDR_OP). PointerType ("*" Type) declara
+   el tipo puntero. La asignacion dinamica de memoria (equivalente a los
+   builtins new/make de Go) no necesita una regla aparte: "new"/"make" no
+   son palabras clave, se parsean como cualquier llamada a funcion
+   (id Arguments), igual que una conversion de tipo T(x).
+
+3. Inferencia, conversion y promocion de tipos.
+   El parser nunca decide tipos: ConstSpec/VarSpec dejan Type en null
+   cuando no aparece explicitamente (se infiere del lado derecho), y una
+   "llamada" a un nombre de tipo (ej. int(x)) se parsea igual que cualquier
+   llamada a funcion. Semantic_types.h agrega representacion de tipos
+   compuestos (POINTER/ARRAY/STRUCT) y utilidades (isNumeric,
+   canPromoteTo, isConvertibleTo) para que el analizador semantico
+   resuelva inferencia/conversion/promocion sin que el parser necesite
+   saber nada de tipos "reales".
+
+4. Ambiguedad de CompositeLit con nombre de tipo (id) dentro de if/for/switch.
+   "if x { ... }" es ambiguo: "x {" podria ser el inicio de un CompositeLit
+   "x{...}" o el Operand "x" seguido del Block del if. Iguel que en Go
+   real, el parser NO permite un CompositeLit con "id" desnudo como
+   condicion directa de if/for/switch (hay que parentizarlo:
+   "if (x{...}).campo { ... }"); dentro de "(", "[" o de otro CompositeLit
+   la ambiguedad no existe y se permite normalmente.
+
+5. Extensiones ya implementadas mas alla de esta gramatica base.
+   El parser ya reconoce, ademas de lo anterior: slices con limites
+   "a[low:high:max]" (SliceExp) y aserciones de tipo "x.(Type)"
+   (TypeAssertionExp), que no estan descritas arriba pero se dejan
+   documentadas aqui para que no parezcan un bug.

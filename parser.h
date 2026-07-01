@@ -8,12 +8,18 @@ class Parser {
 private:
     Scanner* scanner;                       // Puntero al escáner, de donde se leen los tokens
     Token *current, *previous;              // Punteros al token actual y al anterior
+    // true mientras se parsea la cabecera de un if/for/switch (antes de su
+    // Block): evita que "id {" se interprete como un literal compuesto y se
+    // coma la '{' que en realidad abre el Block (misma ambiguedad que existe
+    // en Go real). Se desactiva temporalmente dentro de "(", "[" y al entrar
+    // a un Block, donde la ambiguedad no existe.
+    bool sinLiteralCompuesto = false;
     bool match(Token::Type ttype); // Verifica si el token actual coincide con un tipo esperado y avanza si es así
     bool check(Token::Type ttype);          // Comprueba si el token actual es de cierto tipo, sin avanzar
     bool advance();                         // Avanza al siguiente token
     bool isAtEnd(); 
     void expect(Token::Type ttype);
-    void error(const std::string &expected);
+    [[noreturn]] void error(const std::string &expected);
 public:
     Parser(Scanner* scanner);           
 

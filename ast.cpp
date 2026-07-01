@@ -7,33 +7,100 @@ using namespace std;
 // Parte Rayhan: global y types
 // ----------------------------------------------------------------------
 
+Programa::Programa() {}
+Programa::~Programa() { for (auto d : listatopleveldecl) delete d; }
 
+// TopLevelDecl y Declaration son bases abstractas (nunca se instancian
+// directamente, siempre se crea una subclase concreta), pero el destructor
+// virtual puro necesita cuerpo porque las subclases lo invocan en cadena.
+TopLevelDecl::~TopLevelDecl() {}
+Declaration::~Declaration() {}
+
+FunctionDecl::FunctionDecl() : lista_de_parametros(nullptr), tipo(nullptr), cuerpo(nullptr) {}
+FunctionDecl::~FunctionDecl() { delete lista_de_parametros; delete tipo; delete cuerpo; }
+
+MethodDecl::MethodDecl() : lista_de_parametros(nullptr), tipo(nullptr), cuerpo(nullptr), puntero(false) {}
+MethodDecl::~MethodDecl() { delete lista_de_parametros; delete tipo; delete cuerpo; }
+
+ConstDecl::ConstDecl() {}
+ConstDecl::~ConstDecl() { for (auto s : constspecList) delete s; }
+
+ConstSpec::ConstSpec() : identifierList(nullptr), tipo(nullptr), expresionlist(nullptr) {}
+ConstSpec::~ConstSpec() { delete identifierList; delete tipo; delete expresionlist; }
+
+TypeDecl::TypeDecl() {}
+TypeDecl::~TypeDecl() { for (auto s : typespecList) delete s; }
+
+TypeSpec::TypeSpec() : tipo(nullptr) {}
+TypeSpec::~TypeSpec() { delete tipo; }
+
+VarDecl::VarDecl() {}
+VarDecl::~VarDecl() { for (auto s : varspecList) delete s; }
+
+VarSpec::VarSpec() : identifierlist(nullptr), tipo(nullptr), expresionlist(nullptr) {}
+VarSpec::~VarSpec() { delete identifierlist; delete tipo; delete expresionlist; }
+
+FieldDecl::FieldDecl() : identifierlist(nullptr), type(nullptr) {}
+FieldDecl::~FieldDecl() { delete identifierlist; delete type; }
+
+BasicType::BasicType(string t) : tipo(t) {}
+BasicType::~BasicType() {}
+
+ArrayType::ArrayType() : length(nullptr), elementtype(nullptr) {}
+ArrayType::~ArrayType() { delete length; delete elementtype; }
+
+StructType::StructType() {}
+StructType::~StructType() { for (auto f : declaraciones) delete f; }
+
+PointerType::PointerType() : basetype(nullptr) {}
+PointerType::~PointerType() { delete basetype; }
+
+ParameterList::ParameterList() {}
+ParameterList::~ParameterList() { for (auto p : parameterList) delete p; }
+
+ParameterDecl::ParameterDecl() : identifierlist(nullptr), type(nullptr) {}
+ParameterDecl::~ParameterDecl() { delete identifierlist; delete type; }
+
+IdentifierList::IdentifierList() {}
+IdentifierList::~IdentifierList() {}
+
+ExpList::ExpList() {}
+ExpList::~ExpList() { for (auto e : lista_exp) delete e; }
 
 // ----------------------------------------------------------------------
 // Parte Bruno: Blocks y Statements
 // ----------------------------------------------------------------------
-Block::Block() {}
+// Los campos opcionales de la gramatica (ej: los tres campos de ForClause,
+// o cuerpo_else/if_anidado de IfStmt) pueden quedar sin asignar cuando esa
+// parte simplemente no aparece en el codigo fuente (no es un error). Por
+// eso todo puntero se inicializa en nullptr: delete nullptr no hace nada,
+// pero delete sobre un puntero sin inicializar es undefined behavior.
+Block::Block() : lista_statements(nullptr) {}
 Block::~Block() { delete lista_statements; }
+
+// Stmt es una base abstracta pura (accept = 0), pero su destructor virtual
+// puro necesita cuerpo porque cada destructor derivado lo invoca en cadena.
+Stmt::~Stmt() {}
 
 StmtList::StmtList() {}
 StmtList::~StmtList() { for (const auto i:statements) delete i;}
 
-DeclarationStmt::DeclarationStmt() {}
+DeclarationStmt::DeclarationStmt() : declaration(nullptr) {}
 DeclarationStmt::~DeclarationStmt() {delete declaration;}
 
-BlockStmt::BlockStmt() {}
+BlockStmt::BlockStmt() : block(nullptr) {}
 BlockStmt::~BlockStmt() {delete block;}
 
-ExpresionStmt::ExpresionStmt() {}
+ExpresionStmt::ExpresionStmt() : expresion(nullptr) {}
 ExpresionStmt::~ExpresionStmt() {delete expresion;}
 
-IncDecStmt::IncDecStmt() {}
+IncDecStmt::IncDecStmt() : expresion(nullptr), op(INC_OP) {}
 IncDecStmt::~IncDecStmt() {delete expresion;}
 
-Assigment::Assigment() {}
+Assigment::Assigment() : expresion_list_id(nullptr), expresion_list_values(nullptr), op(ASSIGN) {}
 Assigment::~Assigment() {delete expresion_list_id; delete expresion_list_values;}
 
-ReturnStmt::ReturnStmt() {}
+ReturnStmt::ReturnStmt() : expresion_list(nullptr) {}
 ReturnStmt::~ReturnStmt() {delete expresion_list;}
 
 BreakStmt::BreakStmt() {}
@@ -42,19 +109,19 @@ BreakStmt::~BreakStmt() {}
 ContinueStmt::ContinueStmt() {}
 ContinueStmt::~ContinueStmt() {}
 
-IfStmt::IfStmt() {}
+IfStmt::IfStmt() : expresion(nullptr), cuerpo_if(nullptr), cuerpo_else(nullptr), if_anidado(nullptr) {}
 IfStmt::~IfStmt() {delete expresion; delete cuerpo_if; delete cuerpo_else; delete if_anidado;}
 
-SwitchStmt::SwitchStmt() {}
+SwitchStmt::SwitchStmt() : expresion(nullptr) {}
 SwitchStmt::~SwitchStmt() {delete expresion; for (auto i : exp_case_clause) delete i;}
 
-ExpCaseClause::ExpCaseClause() {}
+ExpCaseClause::ExpCaseClause() : expresion_list(nullptr), statement_list(nullptr) {}
 ExpCaseClause::~ExpCaseClause() {delete expresion_list;delete statement_list;}
 
-ForStmt::ForStmt() {}
+ForStmt::ForStmt() : expresion(nullptr), for_clause(nullptr), block(nullptr) {}
 ForStmt::~ForStmt() {delete expresion; delete for_clause; delete block;}
 
-ForClause::ForClause(){}
+ForClause::ForClause() : asignacion1(nullptr), expresion(nullptr), asignacion2(nullptr), inc_dec_stmt(nullptr) {}
 ForClause::~ForClause() {delete expresion; delete asignacion1; delete asignacion2; delete inc_dec_stmt;}
 
 // ----------------------------------------------------------------------
@@ -63,6 +130,23 @@ ForClause::~ForClause() {delete expresion; delete asignacion1; delete asignacion
 // Exp ────────────────────────────────────────────────
 
 Exp::~Exp() {}
+
+// BinaryExp ──────────────────────────────────────────
+
+BinaryExp::BinaryExp(Exp* left, Exp* right, BinaryOp op) : left(left), right(right), op(op) {}
+
+BinaryExp::~BinaryExp() {
+    delete left;
+    delete right;
+}
+
+// UnaryExprExp ───────────────────────────────────────
+
+UnaryExprExp::UnaryExprExp(Exp* expresion, UnaryOp op, bool postfix) : expresion(expresion), op(op), postfix(postfix) {}
+
+UnaryExprExp::~UnaryExprExp() {
+    delete expresion;
+}
 
 string Exp::binopToString(BinaryOp op) {
     switch (op) {
@@ -86,18 +170,24 @@ string Exp::binopToString(BinaryOp op) {
 
 string Exp::unopToString(UnaryOp op) {
     switch (op) {
-        case NEG_OP: return "-";
-        case NOT_OP: return "!";
-        case INC_OP: return "++";
-        case DEC_OP: return "--";
-        default:     return "?";
+        case POS_OP:   return "+";
+        case NEG_OP:   return "-";
+        case NOT_OP:   return "!";
+        case DEREF_OP: return "*";
+        case ADDR_OP:  return "&";
+        case INC_OP:   return "++";
+        case DEC_OP:   return "--";
+        default:       return "?";
     }
 }
 
 UnaryOp tokenToUnaryOp(Token::Type t) {
     switch (t) {
-        case Token::NEG: return NEG_OP;
-        case Token::NOT: return NOT_OP;
+        case Token::PLUS: return POS_OP;
+        case Token::NEG:  return NEG_OP;
+        case Token::NOT:  return NOT_OP;
+        case Token::MUL:  return DEREF_OP;  // *p: dereferencia de puntero
+        case Token::AND:  return ADDR_OP;   // &x: direccion de memoria
         default:
             throw runtime_error("Operador unario no soportado en este UnaryOp");
     }
@@ -171,6 +261,8 @@ SelectorExp::~SelectorExp() {
 
 FunctionLit::FunctionLit(ParameterList* lista_de_parametros, Type* tipo, Block* cuerpo) : lista_de_parametros(lista_de_parametros), tipo(tipo), cuerpo(cuerpo) {}
 
+FunctionLit::FunctionLit() : lista_de_parametros(nullptr), tipo(nullptr), cuerpo(nullptr) {}
+
 FunctionLit::~FunctionLit() {
     delete lista_de_parametros;
     delete tipo;
@@ -179,7 +271,7 @@ FunctionLit::~FunctionLit() {
 
 CompositeLitExp::CompositeLitExp(Type* tipo, vector<KeyedElement*> elementos) : tipo(tipo), elementos(elementos) {}
 
-CompositeLitExp::CompositeLitExp() {}
+CompositeLitExp::CompositeLitExp() : tipo(nullptr) {}
 
 CompositeLitExp::~CompositeLitExp() {
     delete tipo;
@@ -187,7 +279,7 @@ CompositeLitExp::~CompositeLitExp() {
 }
 
 KeyedElement::KeyedElement(Exp* key, Exp* value) : key(key), value(value) {}
-KeyedElement::KeyedElement(){}
+KeyedElement::KeyedElement() : key(nullptr), value(nullptr) {}
 
 KeyedElement::~KeyedElement() {
     delete key;

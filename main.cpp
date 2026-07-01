@@ -31,34 +31,26 @@ int main(int argc, const char* argv[]) {
     }
     infile.close();
 
-    // Crear instancias de Scanner 
+    // Crear instancias de Scanner
     Scanner scanner1(input.c_str());
-
-    //Scanner scanner2(input.c_str());
+    Scanner scanner2(input.c_str());
 
     // Tokens
     ejecutar_scanner(&scanner1, argv[1]);
 
-    /*
-    // Crear instancias de Parser
+    // Crear instancia de Parser
     Parser parser(&scanner2);
 
     // Parsear y generar AST
     Programa* ast = nullptr;
-    
+
     try {
         ast = parser.parseProgram();
     } catch (const std::exception& e) {
         cerr << "Error al parsear: " << e.what() << endl;
-        ast = nullptr; 
+        return 1;
     }
 
-
-    PrintVisitor impresion;
-    impresion.imprimir(ast);
-    
-    EVALVisitor interprete;
-    interprete.interprete(ast);
-    */
+    delete ast;
     return 0;
 }

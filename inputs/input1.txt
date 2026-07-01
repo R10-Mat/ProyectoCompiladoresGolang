@@ -1,0 +1,62 @@
+const Pi float64 = 3;
+const (
+    A = 1;
+    B = 2;
+);
+
+type Point struct {
+    x int;
+    y int;
+};
+
+type Empty struct {};
+
+var global int;
+var inferred = 5;
+var x, y int = 1, 2;
+
+func main() {
+    var p *Point;
+    p = &global;
+    var i int = 0;
+    for i = 0; i < 10; i = i + 1 {
+        if i == 5 {
+            break;
+        } else {
+            continue;
+        };
+    };
+    for i, y = 0, 1; i < 10; i += 1 {
+        y = y + 1;
+    };
+    for x < 10 {
+        x = x + 1;
+    };
+    for {
+        break;
+    };
+    switch x {
+        case 1:
+            y = 1;
+        default:
+            y = 2;
+    };
+    var arr [3]int;
+    var q int;
+    q = *p.x;
+    var r *int;
+    r = &x;
+    var n int;
+    n = arr[0];
+    var m Point;
+    m = Point{x: 1, y: 2};
+    return;
+};
+
+func add(a, b int) int {
+    return a + b;
+};
+
+func (p *Point) Move(dx int, dy int) {
+    p.x = p.x + dx;
+};

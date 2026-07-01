@@ -75,81 +75,77 @@ bool Parser::isAtEnd() {
 // Parte Rayhan: global y types
 // ----------------------------------------------------------------------
 Programa* Parser::parseProgram() {
+    // Program = { TopLevelDecl ";" }  -> cero o mas, cada uno terminado en ";"
     auto* program = new Programa();
-    program->listatopleveldecl.push_back(parseTopLevelDecl());
-    while (match(Token::PCOMMA)){
+    while (!isAtEnd()){
         program->listatopleveldecl.push_back(parseTopLevelDecl());
-    }
-    if (!isAtEnd()){
-        throw runtime_error("Error sintáctico");
+        expect(Token::PCOMMA);
     }
     cout << "Parseo exitoso" << endl;
     return program;
 }
 
 TopLevelDecl* Parser::parseTopLevelDecl(){
-    auto* d = new TopLevelDecl();
     if (check(Token::CONST) || check(Token::TYPE) || check(Token::VAR)){
-        d = parseDeclaration();
-    }else if (match(Token::FUNC)){
-        if (match(Token::LPAREN)){
-            d = parseMethodDecl();
-        }else{
-            d = parseFunctionDecl();
-        }
+        return parseDeclaration();
     }
-    return d;
+    if (match(Token::FUNC)){
+        if (match(Token::LPAREN)){
+            return parseMethodDecl();
+        }
+        return parseFunctionDecl();
+    }
+    error("'const', 'type', 'var' o 'func' para iniciar una declaracion de nivel superior");
+    return nullptr; // inalcanzable: error() siempre lanza una excepcion
 }
 
 Declaration* Parser::parseDeclaration(){
-
     if (match(Token::CONST)){
         return parseConstDecl();
-    }else if (match(Token::TYPE)){
-        return parseTypeDecl();
-    }else if (match(Token::VAR)){
-        return parseVarDecl();
-    }else {
-        throw runtime_error("Error sintáctico");
     }
-
+    if (match(Token::TYPE)){
+        return parseTypeDecl();
+    }
+    if (match(Token::VAR)){
+        return parseVarDecl();
+    }
+    error("'const', 'type' o 'var'");
+    return nullptr; // inalcanzable: error() siempre lanza una excepcion
 }
 
 ConstDecl* Parser::parseConstDecl(){
+    // "const" ( ConstSpec | "(" { ConstSpec ";" } ")" )
     auto* decl = new ConstDecl();
     if (match(Token::LPAREN)){
-        decl->constspecList.push_back(parseConstSpec());
-        while(match(Token::PCOMMA)){
+        while (!check(Token::RPAREN) && !isAtEnd()) {
             decl->constspecList.push_back(parseConstSpec());
+            expect(Token::PCOMMA);
         }
-        match(Token::RPAREN);
+        expect(Token::RPAREN);
     }else{
         decl->constspecList.push_back(parseConstSpec());
     }
     return decl;
 }
 ConstSpec* Parser::parseConstSpec(){
+    // ConstSpec = IdentifierList [ Type ] "=" ExpressionList  ("=" es obligatorio)
     auto constspec = new ConstSpec();
     constspec->identifierList = parseIdentifierList();
-    Type* t = parseType();
-    if (t) {
-        constspec->tipo = t;
-    } else {
-        constspec->tipo = nullptr;
-    }
-    match(Token::ASSIGN);
+    constspec->tipo = parseType();
+    expect(Token::ASSIGN);
     constspec->expresionlist = parseExpList();
     return constspec;
 }
 
 TypeDecl* Parser::parseTypeDecl(){
+    // "type" ( TypeSpec | "(" { TypeSpec ";" } ")" )
     auto typedecl = new TypeDecl();
     if (match(Token::LPAREN)){
-        typedecl->typespecList.push_back(parseTypeSpec());
-        while(match(Token::PCOMMA)){
+        while (!check(Token::RPAREN) && !isAtEnd()) {
             typedecl->typespecList.push_back(parseTypeSpec());
+            expect(Token::PCOMMA);
         }
-        match(Token::RPAREN);
+        expect(Token::RPAREN);
     }else{
         typedecl->typespecList.push_back(parseTypeSpec());
     }
@@ -157,163 +153,178 @@ TypeDecl* Parser::parseTypeDecl(){
 }
 
 TypeSpec* Parser::parseTypeSpec(){
+    // TypeSpec = id Type  (ambos son obligatorios)
     TypeSpec* typespec = new TypeSpec();
-    if (match(Token::ID)){
-        typespec->id = previous->text;
-        typespec->tipo = parseType();// manejar que no haya type
-    }else{
-        throw runtime_error("Error sintáctico");
+    if (!match(Token::ID)){
+        error("un identificador para el nombre del tipo");
     }
+    typespec->id = previous->text;
+    typespec->tipo = parseType();
     if (!typespec->tipo){
-        throw runtime_error("Error sintáctico necesita especificar el tipo");
+        error("un tipo despues del identificador en la declaracion de tipo");
     }
     return typespec;
 }
 VarDecl* Parser::parseVarDecl(){
+    // "var" ( VarSpec | "(" { VarSpec ";" } ")" )
     auto varDecl = new VarDecl();
     if (match(Token::LPAREN)){
-        varDecl->varspecList.push_back(parseVarSpec());
-        while(match(Token::PCOMMA)){
+        while (!check(Token::RPAREN) && !isAtEnd()) {
             varDecl->varspecList.push_back(parseVarSpec());
+            expect(Token::PCOMMA);
         }
-        match(Token::RPAREN);
+        expect(Token::RPAREN);
     }else {
         varDecl->varspecList.push_back(parseVarSpec());
     }
     return varDecl;
 }
-// Que hago si el tipo tiene que necesariamente poner eso y si no pone debe arrojar error
 
 VarSpec* Parser::parseVarSpec(){
+    // VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList )
     auto varSpec = new VarSpec();
     varSpec->identifierlist = parseIdentifierList();
+    varSpec->tipo = parseType();
     if (match(Token::ASSIGN)) {
-        varSpec->tipo = nullptr;
         varSpec->expresionlist = parseExpList();
     } else {
-        varSpec->tipo = parseType();
-        if (check(Token::ASSIGN)) {
-            varSpec->expresionlist = parseExpList();
-        } else {
-            varSpec->expresionlist = nullptr;
+        varSpec->expresionlist = nullptr;
+        if (!varSpec->tipo) {
+            error("un tipo o '=' seguido de una lista de expresiones en la declaracion de variable");
         }
     }
     return varSpec;
 }
 
 IdentifierList* Parser::parseIdentifierList(){
+    // IdentifierList = id { "," id }  (siempre debe empezar con un id)
     auto identifierlist = new IdentifierList();
-    match(Token::ID);
-    string id = previous->text;
-    identifierlist->lista_ids.push_back(id);
-    while (match(Token::ID)) {
-        id = previous->text;
-        identifierlist->lista_ids.push_back(id);
+    if (!match(Token::ID)) {
+        error("un identificador");
     }
-
+    identifierlist->lista_ids.push_back(previous->text);
+    while (match(Token::COMMA)) {
+        if (!match(Token::ID)) {
+            error("un identificador despues de ','");
+        }
+        identifierlist->lista_ids.push_back(previous->text);
+    }
     return identifierlist;
 }
 
 MethodDecl* Parser::parseMethodDecl(){
+    // "func" "(" id [ "*" ] id ")" id "(" [ ParameterList ] ")" [ Type ] Block
+    // El "(" inicial ya fue consumido por parseTopLevelDecl.
     auto* methodDecl = new MethodDecl();
     expect(Token::ID);
     methodDecl->nombreId = previous->text;
-    if (match(Token::MUL)){
-        methodDecl->puntero = true;
-    }else {
-        methodDecl->puntero = false;
-    }
+    methodDecl->puntero = match(Token::MUL);
     expect(Token::ID);
     methodDecl->NombreTipoBase = previous->text;
     expect(Token::RPAREN);
     expect(Token::ID);
     methodDecl->nombreMethod = previous->text;
     expect(Token::LPAREN);
-    methodDecl->lista_de_parametros = parseParameterList();// nullptr manejo
+    methodDecl->lista_de_parametros = parseParameterList();
     expect(Token::RPAREN);
-    auto* t = parseType();
-    if (t != nullptr)
-        methodDecl->tipo = t;
-    else {
-        methodDecl->tipo = nullptr;
-    }
-    auto* bloque = parseBlock();
-    if (!bloque)
-        throw runtime_error("Error sintáctico necesita un cuerpo la función");
-
-    methodDecl->cuerpo = bloque;
+    methodDecl->tipo = parseType();
+    methodDecl->cuerpo = parseBlock();
     return methodDecl;
-
 }
-FunctionDecl* Parser::parseFunctionDecl(){
 
+FunctionDecl* Parser::parseFunctionDecl(){
+    // "func" id "(" [ ParameterList ] ")" [ Type ] Block
     auto* functionDecl = new FunctionDecl();
     expect(Token::ID);
     functionDecl->name = previous->text;
     expect(Token::LPAREN);
     functionDecl->lista_de_parametros = parseParameterList();
     expect(Token::RPAREN);
-    Type* _tipo = parseType();// algo dudoso
-    if (_tipo != nullptr){
-        functionDecl->tipo = _tipo;
-    }
+    functionDecl->tipo = parseType();
     functionDecl->cuerpo = parseBlock();
-
     return functionDecl;
 }
 Type* Parser::parseType(){
-
-    // Deudas de parseo
-    if (match(Token::ID))
+    // Type = id | BasicType | ArrayType | StructType | PointerType
+    // Devuelve nullptr cuando el token actual no puede iniciar un Type: es
+    // valido, ya que Type es opcional en varios contextos (ConstSpec,
+    // VarSpec, FunctionDecl, MethodDecl); el que llama decide si es un error.
+    if (match(Token::ID)) {
+        // "int"/"float64"/"bool"/"string" no son palabras clave: llegan
+        // como ID igual que cualquier nombre de tipo definido por el usuario.
         return new BasicType(previous->text);
-    else if (match(Token::STRUCT)){
+    }
+
+    if (match(Token::STRUCT)){
+        // StructType = "struct" "{" { FieldDecl ";" } "}"  (puede ser vacio)
         StructType* st = new StructType();
         expect(Token::LLLAVE);
-        st->declaraciones.push_back(parseFieldDecl());
-        while (match(Token::PCOMMA)){
+        while (!check(Token::RLLAVE) && !isAtEnd()) {
             st->declaraciones.push_back(parseFieldDecl());
+            expect(Token::PCOMMA);
         }
         expect(Token::RLLAVE);
         return st;
-    }else if (match(Token::MUL)){
-        PointerType* pointer = new PointerType();
-        pointer->basetype = parseType();
-        return pointer;
-    }else if (match(Token::LCORCHETE)){
-        ArrayType* array = new ArrayType();
-        array->length = parseExp();
-        array->elementtype = parseType();
-        expect(Token::RCORCHETE);
-        return array;
-    }else {
-        return nullptr; // Vacio
     }
 
+    if (match(Token::MUL)){
+        // PointerType = "*" Type
+        PointerType* pointer = new PointerType();
+        pointer->basetype = parseType();
+        if (!pointer->basetype) {
+            error("un tipo despues de '*' en la declaracion de puntero");
+        }
+        return pointer;
+    }
+
+    if (match(Token::LCORCHETE)){
+        // ArrayType = "[" int_lit "]" Type  ("]" cierra ANTES del tipo de elemento)
+        ArrayType* array = new ArrayType();
+        array->length = parseExp();
+        expect(Token::RCORCHETE);
+        array->elementtype = parseType();
+        if (!array->elementtype) {
+            error("un tipo para los elementos del arreglo");
+        }
+        return array;
+    }
+
+    return nullptr; // Ningun Type presente en esta posicion
 }
 
 ParameterList* Parser::parseParameterList(){
+    // ParameterList = ParameterDecl { "," ParameterDecl }
+    // Notar que en "(" [ ParameterList ] ")" la lista completa es opcional:
+    // una lista vacia es valida (func sin parametros).
     ParameterList* lista_parametros = new ParameterList();
-
-    ParameterDecl* declaracion = parseParameterDecl();
-    lista_parametros->parameterList.push_back(declaracion);
-    while (match(Token::COMMA)) {
-        declaracion = parseParameterDecl();
-        lista_parametros->parameterList.push_back(declaracion);
+    if (!check(Token::ID)) {
+        return lista_parametros;
     }
-
+    lista_parametros->parameterList.push_back(parseParameterDecl());
+    while (match(Token::COMMA)) {
+        lista_parametros->parameterList.push_back(parseParameterDecl());
+    }
     return lista_parametros;
 }
 
 ParameterDecl* Parser::parseParameterDecl(){
+    // ParameterDecl = IdentifierList Type  (el tipo es obligatorio)
     ParameterDecl* parameterDecl = new ParameterDecl();
     parameterDecl->identifierlist = parseIdentifierList();
     parameterDecl->type = parseType();
+    if (!parameterDecl->type) {
+        error("un tipo para el parametro");
+    }
     return parameterDecl;
 }
 FieldDecl* Parser::parseFieldDecl(){
+    // FieldDecl = IdentifierList Type  (el tipo es obligatorio)
     FieldDecl* fieldDecl = new FieldDecl();
     fieldDecl->identifierlist = parseIdentifierList();
     fieldDecl->type = parseType();
+    if (!fieldDecl->type) {
+        error("un tipo para el campo del struct");
+    }
     return fieldDecl;
 }
 
@@ -329,23 +340,23 @@ ExpList *Parser::parseExpList() {
 // Parte Bruno: Blocks y Statements
 // ----------------------------------------------------------------------
 Block *Parser::parseBlock() {
-    if (check(Token::LLLAVE)) {
-        match(Token::LLLAVE);
-        auto bloque = new Block();
-        bloque->lista_statements = parseStmtList();
-        if (check(Token::RLLAVE)) {
-            match(Token::RLLAVE);
-            return bloque;
-        } throw runtime_error("Un bloque debe terminar con '}'");
-    }
-    throw runtime_error("Un bloque debe empezar con '{' ");
+    // Block = "{" StatementList "}"
+    expect(Token::LLLAVE);
+    auto bloque = new Block();
+    bloque->lista_statements = parseStmtList();
+    expect(Token::RLLAVE);
+    return bloque;
 }
 
 StmtList *Parser::parseStmtList() {
+    // StatementList = { Statement ";" }  -> cero o mas, cada uno terminado en ";"
+    // Se detiene ante '}' (fin de Block) o 'case'/'default' (fin de un
+    // ExprCaseClause dentro de un switch), que son los dos contextos donde
+    // se invoca parseStmtList.
     auto lista_statements = new StmtList();
-    lista_statements->statements.push_back(parseStmt());
-    while (match(Token::PCOMMA)) {
+    while (!check(Token::RLLAVE) && !check(Token::CASE) && !check(Token::DEFAULT) && !isAtEnd()) {
         lista_statements->statements.push_back(parseStmt());
+        expect(Token::PCOMMA);
     }
     return lista_statements;
 }
@@ -364,7 +375,7 @@ Stmt *Parser::parseStmt() {
         return parseBreakStmt();
     }
     if (check(Token::CONTINUE)) {
-        return parseReturnStmt();
+        return parseContinueStmt();
     }
     if (check(Token::IF)) {
         return parseIfStmt();
@@ -381,8 +392,9 @@ Stmt *Parser::parseStmt() {
         return parseIncDecStmt(expresion_list->lista_exp[0]);
     }
 
-    if (check(Token::PLUSASSIGN) || check(Token::NEGASSIGN) ||
-        check(Token::MULASSIGN)  || check(Token::DIVASSIGN)) {
+    if (check(Token::ASSIGN)       || check(Token::PLUSASSIGN) ||
+        check(Token::NEGASSIGN)    || check(Token::MULASSIGN)  ||
+        check(Token::DIVASSIGN)) {
         return parseAssigment(expresion_list);
     }
 
@@ -474,7 +486,10 @@ ContinueStmt *Parser::parseContinueStmt() {
 IfStmt *Parser::parseIfStmt() {
     match(Token::IF);
     auto if_stmt = new IfStmt();
+    bool restaurar = sinLiteralCompuesto;
+    sinLiteralCompuesto = true;
     if_stmt->expresion = parseExp();
+    sinLiteralCompuesto = restaurar;
     if_stmt->cuerpo_if = parseBlock();
     if (check(Token::ELSE)) {
         match(Token::ELSE);
@@ -496,27 +511,32 @@ SwitchStmt *Parser::parseSwitchStmt() {
     match(Token::SWITCH);
     auto switch_stmt =  new SwitchStmt();
     if (!check(Token::LLLAVE)) {
+        bool restaurar = sinLiteralCompuesto;
+        sinLiteralCompuesto = true;
         switch_stmt->expresion = parseExp();
+        sinLiteralCompuesto = restaurar;
     } else {
         switch_stmt->expresion = nullptr;
     }
-    match(Token::LLLAVE);
-    while (!check(Token::RLLAVE)) {
+    expect(Token::LLLAVE);
+    while (!check(Token::RLLAVE) && !isAtEnd()) {
         switch_stmt->exp_case_clause.push_back(parseExpCaseClause());
     }
-    match(Token::RLLAVE);
+    expect(Token::RLLAVE);
     return switch_stmt;
 }
 
 ExpCaseClause *Parser::parseExpCaseClause() {
+    // ExprCaseClause = "case" ExpressionList ":" StatementList
+    //                | "default" ":" StatementList
     auto exp_case_clause = new ExpCaseClause();
-    if (check(Token::CASE)) {
-        match(Token::CASE);
+    if (match(Token::CASE)) {
         exp_case_clause->expresion_list = parseExpList();
-        match(Token::DOS_PUNTOS);
+        expect(Token::DOS_PUNTOS);
         exp_case_clause->statement_list = parseStmtList();
     } else {
-        match(Token::DEFAULT);
+        expect(Token::DEFAULT);
+        expect(Token::DOS_PUNTOS);
         exp_case_clause->expresion_list = nullptr;
         exp_case_clause->statement_list = parseStmtList();
     }
@@ -524,6 +544,7 @@ ExpCaseClause *Parser::parseExpCaseClause() {
 }
 
 ForStmt *Parser::parseForStmt() {
+    // ForStmt = "for" [ Expression | ForClause ] Block
     match(Token::FOR);
     auto for_stmt = new ForStmt();
     // Caso 1: for  {...}
@@ -531,31 +552,52 @@ ForStmt *Parser::parseForStmt() {
         for_stmt->block = parseBlock();
         return for_stmt;
     }
-    // Caso 2: Es un for clause por que encontramos un ; o un = o un , despues de la expresión
-    auto primera_exp = parseExp();
-    if (check(Token::PCOMMA) || check(Token::EQUAL) || check(Token::COMMA)) {
-        for_stmt->for_clause = parseForClause(primera_exp);
+
+    bool restaurar = sinLiteralCompuesto;
+    sinLiteralCompuesto = true;
+
+    // Caso 2: "for ; [cond]; [post] {}" con init vacio: no hay expresion que
+    // parsear antes del primer ';'.
+    if (check(Token::PCOMMA)) {
+        for_stmt->for_clause = parseForClause(nullptr);
+    } else {
+        auto primera_exp = parseExp();
+        // Caso 3: es un ForClause si tras la primera expresion aparece ','
+        // (mas identificadores antes del '=') o el inicio de un Assignment
+        // ('=' o un operador compuesto).
+        if (check(Token::PCOMMA)    || check(Token::COMMA) ||
+            check(Token::ASSIGN)    || check(Token::PLUSASSIGN) ||
+            check(Token::NEGASSIGN) || check(Token::MULASSIGN) ||
+            check(Token::DIVASSIGN)) {
+            for_stmt->for_clause = parseForClause(primera_exp);
+        }
+        // Caso 4: Es una expresion condicional
+        else {
+            for_stmt->expresion = primera_exp;
+        }
     }
-    // Caso 3: Es una expresion condicional
-    else {
-        for_stmt->expresion = primera_exp;
-    }
+
+    sinLiteralCompuesto = restaurar;
     for_stmt->block = parseBlock();
     return for_stmt;
 }
 
 ForClause *Parser::parseForClause(Exp* primera_exp) {
+    // ForClause = [ Assignment ] ";" [ Expression ] ";" [ Assignment | IncDecStmt ]
     auto clause = new ForClause();
     if (!check(Token::PCOMMA)) {
         auto el1 = new ExpList();
         el1->lista_exp.push_back(primera_exp);
+        while (match(Token::COMMA)) {
+            el1->lista_exp.push_back(parseExp());
+        }
         clause->asignacion1 = parseAssigment(el1);
     }
-    match(Token::PCOMMA);
+    expect(Token::PCOMMA);
     if (!check(Token::PCOMMA)) {
         clause->expresion = parseExp();
     }
-    match(Token::PCOMMA);
+    expect(Token::PCOMMA);
     if (!check(Token::LLLAVE)) {
         auto tercera_exp = parseExp();
         if (check(Token::INC) || check(Token::DEC)) {
@@ -660,6 +702,11 @@ Exp* Parser::primaryParseExp() {
             }
         }
         else if (match(Token::LCORCHETE)) {
+            // Dentro de "[...]" no hay ambiguedad con el Block de un
+            // if/for/switch, asi que se permite literales compuestos.
+            bool restaurar = sinLiteralCompuesto;
+            sinLiteralCompuesto = false;
+
             Exp* low = nullptr;
             Exp* high = nullptr;
             Exp* max = nullptr;
@@ -690,8 +737,13 @@ Exp* Parser::primaryParseExp() {
                 idx->indice = low;
                 base = idx;
             }
+            sinLiteralCompuesto = restaurar;
         }
         else if (match(Token::LPAREN)) {
+            // Dentro de "(...)" tampoco hay ambiguedad.
+            bool restaurar = sinLiteralCompuesto;
+            sinLiteralCompuesto = false;
+
             auto call = new ArgumentsExp();
             call->funcion = base;
 
@@ -702,6 +754,7 @@ Exp* Parser::primaryParseExp() {
 
             expect(Token::RPAREN);
             base = call;
+            sinLiteralCompuesto = restaurar;
         }
         else {
             break;
@@ -712,63 +765,74 @@ Exp* Parser::primaryParseExp() {
 }
 
 Exp* Parser::parseUnaryExpr() {
-    if (check(Token::PLUS) || check(Token::NEG) || check(Token::NOT) || 
-        check(Token::CARET) || check(Token::MUL) || check(Token::AND) || 
-        check(Token::ARROW)) {
-        
+    // UnaryExpr = unary_op UnaryExpr | PrimaryExpr
+    // unary_op = "+" | "-" | "!" | "*" | "&"  ('*' es dereferencia, '&' es direccion de memoria)
+    if (check(Token::PLUS) || check(Token::NEG) || check(Token::NOT) ||
+        check(Token::MUL)  || check(Token::AND)) {
+
         UnaryOp op = tokenToUnaryOp(current->type);
-        advance(); 
-        Exp* expresion = parseUnaryExpr(); 
-        
+        advance();
+        Exp* expresion = parseUnaryExpr();
+
         return new UnaryExprExp(expresion,op);
     }
-    
+
     return primaryParseExp();
 }
 
 
 Exp* Parser::operandParseExp() {
     if (match(Token::LPAREN)) {
+        // Dentro de "(...)" no hay ambiguedad con el Block de un if/for/switch.
+        bool restaurar = sinLiteralCompuesto;
+        sinLiteralCompuesto = false;
         Exp* expresionInterna = parseExp();
+        sinLiteralCompuesto = restaurar;
         expect(Token::RPAREN);
-        
+
         auto parenExp = new ParenExp(expresionInterna);
         return parenExp;
-    } 
-    
+    }
+
     if (check(Token::FUNC)) {
         match(Token::FUNC);
         return functionLiteralParseExp();
     }
-    
-    if (check(Token::INT_LIT) || check(Token::STRING_LIT) || 
-        check(Token::RUNE_LIT) || check(Token::IMAGINARY_LIT) || 
+
+    if (check(Token::INT_LIT) || check(Token::STRING_LIT) ||
+        check(Token::RUNE_LIT) || check(Token::IMAGINARY_LIT) ||
         check(Token::FLOAT_LIT)) {
         return basicLiteralParseExp();
     }
-    
+
     if (check(Token::ID)) {
         string nombre = current->text;
         match(Token::ID);
-        
-        auto operandName = new OperandNameExp();
-        operandName->name = nombre;
-        
-        if (match(Token::LCORCHETE)) {
-            expect(Token::RCORCHETE);
-        }
-        
-        if (check(Token::LLLAVE)) {
+
+        // Operand = id | CompositeLit ; un id seguido de '{' es un literal
+        // compuesto con un nombre de tipo (ej: Point{x: 1, y: 2}), salvo
+        // dentro de la cabecera de un if/for/switch, donde esa '{' en
+        // realidad abre el Block (misma ambiguedad que existe en Go real:
+        // ahi el literal compuesto necesita parentesis extra).
+        if (check(Token::LLLAVE) && !sinLiteralCompuesto) {
             auto compLit = new CompositeLitExp();
-            compLit->tipo = new BasicType(nombre); 
+            compLit->tipo = new BasicType(nombre);
             compLit->elementos = parseLiteralValue();
             return compLit;
         }
-        
+
+        auto operandName = new OperandNameExp();
+        operandName->name = nombre;
         return operandName;
     }
-    
-    return compositeLiteralParseExp();
+
+    // Operand = ... | CompositeLit  con un Type que no es un id (struct/array/pointer)
+    if (check(Token::STRUCT) || check(Token::MUL) || check(Token::LCORCHETE)) {
+        return compositeLiteralParseExp();
+    }
+
+    error("un operando (identificador, literal, '(', 'func' o un literal compuesto)");
+    return nullptr; // inalcanzable: error() siempre lanza una excepcion
 }
 
 
@@ -786,7 +850,13 @@ Exp* Parser::compositeLiteralParseExp() {
 vector<KeyedElement*> Parser::parseLiteralValue() {
     expect(Token::LLLAVE);
     vector<KeyedElement*> elementos;
-    
+
+    // Ya estamos dentro de las llaves de un literal compuesto: la '{'
+    // ambigua con el Block de un if/for/switch ya se resolvio, asi que los
+    // elementos anidados pueden usar literales compuestos con id libremente.
+    bool restaurar = sinLiteralCompuesto;
+    sinLiteralCompuesto = false;
+
     while (!check(Token::RLLAVE) && !isAtEnd()) {
         auto elemento = new KeyedElement();
         
@@ -801,12 +871,13 @@ vector<KeyedElement*> Parser::parseLiteralValue() {
         }
         
         elementos.push_back(elemento);
-        
+
         if (!match(Token::COMMA)) {
             break;
         }
     }
-    
+
+    sinLiteralCompuesto = restaurar;
     expect(Token::RLLAVE);
     return elementos;
 }
@@ -817,29 +888,27 @@ Exp* Parser::basicLiteralParseExp() {
     basicLit->valor = current->text;
     basicLit->tipoLiteral = current->type;
     
-    if (match(Token::INT_LIT) || match(Token::STRING_LIT) || 
-        match(Token::RUNE_LIT) || match(Token::IMAGINARY_LIT) || 
+    if (match(Token::INT_LIT) || match(Token::STRING_LIT) ||
+        match(Token::RUNE_LIT) || match(Token::IMAGINARY_LIT) ||
         match(Token::FLOAT_LIT)) {
         return basicLit;
     }
-    
-    throw runtime_error("Error");
+
+    delete basicLit;
+    error("un literal (entero, flotante, cadena, rune o imaginario)");
+    return nullptr; // inalcanzable: error() siempre lanza una excepcion
 }
 
 
 FunctionLit* Parser::functionLiteralParseExp() {
     auto funcLit = new FunctionLit();
-    
+
     expect(Token::LPAREN);
     funcLit->lista_de_parametros = parseParameterList();
     expect(Token::RPAREN);
-    
-    if (check(Token::ID) || check(Token::MUL) || check(Token::LCORCHETE) || check(Token::STRUCT)) {
-        funcLit->tipo = parseType();
-    } else {
-        funcLit->tipo = nullptr; 
-    }
 
+    // parseType() ya devuelve nullptr si no hay Type en esta posicion.
+    funcLit->tipo = parseType();
     funcLit->cuerpo = parseBlock();
 
     return funcLit;

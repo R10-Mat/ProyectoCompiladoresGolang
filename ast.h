@@ -13,14 +13,7 @@
 class ExpList;
 class ForClause;
 class ExpCaseClause;
-class TypeTerm;
-class InterfaceElem;
 class ParameterDecl;
-class Signature;
-class TypeArgs;
-class TypeName;
-class TypeList;
-class IdExp;
 class FieldDecl;
 class Exp;
 class StmtList;
@@ -51,10 +44,13 @@ enum AssignOp {
 };
 
 enum UnaryOp {
-    NEG_OP,   
-    NOT_OP,   
-    INC_OP,   
-    DEC_OP    
+    POS_OP,   // +x
+    NEG_OP,   // -x
+    NOT_OP,   // !x
+    DEREF_OP, // *p  (dereferencia de puntero)
+    ADDR_OP,  // &x  (direccion de memoria)
+    INC_OP,   // x++ (postfijo, usado en IncDecStmt)
+    DEC_OP    // x-- (postfijo, usado en IncDecStmt)
 };
 
 // ----------------------------------------------------------------------
@@ -70,16 +66,16 @@ public:
 };
 
 class TopLevelDecl {
-public: 
-    virtual void accept(Visitor* visitor);
-    virtual ~TopLevelDecl();
-    
+public:
+    virtual void accept(Visitor* visitor) = 0;
+    virtual ~TopLevelDecl() = 0;
+
 };
 
 class Declaration : public TopLevelDecl {
 public:
-    virtual void accept(Visitor* visitor);
-    virtual ~Declaration();
+    virtual void accept(Visitor* visitor) = 0;
+    virtual ~Declaration() = 0;
 };
 class FunctionDecl : public TopLevelDecl {
 public:
@@ -163,16 +159,16 @@ public:
 
 class FieldDecl {
 public:
-    IdentifierList* identifierlist; 
+    IdentifierList* identifierlist;
     Type* type;
     void accept(Visitor* visitor);
     FieldDecl();
-    ~FieldDecl() = default;
+    ~FieldDecl();
 };
 
 class Type {
 public:
-    virtual void accept(Visitor* visitor);
+    virtual void accept(Visitor* visitor) = 0;
     virtual ~Type() = default;
 };
 
@@ -192,7 +188,7 @@ public:
     Type* elementtype;
     void accept(Visitor *visitor) override;
     ArrayType();
-    ~ArrayType() = default;
+    ~ArrayType() override;
 };
 
 class StructType: public Type {
@@ -487,7 +483,7 @@ public:
     Exp*   expresion;
     string campo;
 
-    SelectorExp(){};
+    SelectorExp() : expresion(nullptr) {};
     SelectorExp(Exp* expresion, const string& campo);
     ~SelectorExp();
     Semantic_types accept(Visitor* visitor) override;

@@ -1,12 +1,4 @@
 === STDOUT ===
-Codigo:
-int x = 40;
-x--;
-x += 1;
-print (x)
-
-Interprete:
-40
-
+Parseo exitoso
 
 === STDERR ===
