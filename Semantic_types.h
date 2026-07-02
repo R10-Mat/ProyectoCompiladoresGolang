@@ -70,6 +70,9 @@ public:
     [[nodiscard]] const Semantic_types* baseType() const { return tipo_base.get(); }
     [[nodiscard]] long arrayLength() const { return longitud_arreglo; }
     [[nodiscard]] const string& structName() const { return nombre_struct; }
+    // Asigna el nombre despues de resolver un StructType anonimo (ej. al
+    // registrar "type Point struct {...}" en la tabla de tipos con nombre).
+    void setStructName(const string& n) { nombre_struct = n; }
 
     // Tipo de un campo del struct; NOTYPE si el campo no existe.
     [[nodiscard]] Semantic_types fieldType(const string& nombre_campo) const {
@@ -77,6 +80,21 @@ public:
             if (campo.first == nombre_campo && campo.second) return *campo.second;
         return Semantic_types(NOTYPE);
     }
+
+    // Cantidad de campos declarados (usado por GenCode para reservar espacio).
+    [[nodiscard]] size_t fieldCount() const { return campos_struct.size(); }
+
+    // Indice (0-based, en orden de declaracion) de un campo; -1 si no existe.
+    // Usado por GenCode para calcular el offset de un campo dentro del struct.
+    [[nodiscard]] int fieldIndex(const string& nombre_campo) const {
+        for (size_t i = 0; i < campos_struct.size(); ++i)
+            if (campos_struct[i].first == nombre_campo) return static_cast<int>(i);
+        return -1;
+    }
+
+    // Nombre del campo en la posicion `i` (orden de declaracion); usado para
+    // resolver literales de struct posicionales (sin clave "campo:").
+    [[nodiscard]] const string& fieldNameAt(size_t i) const { return campos_struct[i].first; }
 
     bool match(const Semantic_types* other) const {
         if (!other) return false;

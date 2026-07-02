@@ -168,7 +168,7 @@ public:
 
 class Type {
 public:
-    virtual void accept(Visitor* visitor) = 0;
+    virtual Semantic_types accept(Visitor* visitor) = 0;
     virtual ~Type() = default;
 };
 
@@ -176,8 +176,8 @@ class BasicType : public Type{
 public:
 
     string tipo;
-    void accept(Visitor* visitor) override;
-  
+    Semantic_types accept(Visitor* visitor) override;
+
     BasicType(string t);
     ~BasicType();
 };
@@ -186,7 +186,7 @@ class ArrayType: public Type {
 public:
     Exp* length;
     Type* elementtype;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     ArrayType();
     ~ArrayType() override;
 };
@@ -194,7 +194,7 @@ public:
 class StructType: public Type {
 public:
     list<FieldDecl*> declaraciones;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     StructType();
     ~StructType();
 };
@@ -203,7 +203,7 @@ public:
 class PointerType: public Type {
 public:
     Type* basetype;
-    void accept(Visitor *visitor) override;
+    Semantic_types accept(Visitor *visitor) override;
     PointerType();
     ~PointerType() override;
 };

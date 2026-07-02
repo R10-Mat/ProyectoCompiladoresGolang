@@ -1,0 +1,24 @@
+Scanner
+
+TOKEN(FUNC, "func") [line 1]
+TOKEN(ID, "main") [line 1]
+TOKEN(LPAREN, "(") [line 1]
+TOKEN(RPAREN, ")") [line 1]
+TOKEN(LLLAVE, "{") [line 1]
+TOKEN(VAR, "var") [line 2]
+TOKEN(ID, "x") [line 2]
+TOKEN(ID, "int") [line 2]
+TOKEN(ASSIGN, "=") [line 2]
+TOKEN(INT_LIT, "1") [line 2]
+TOKEN(PCOMMA, ";") [line 2]
+TOKEN(ID, "println") [line 3]
+TOKEN(LPAREN, "(") [line 3]
+TOKEN(ID, "y") [line 3]
+TOKEN(RPAREN, ")") [line 3]
+TOKEN(PCOMMA, ";") [line 3]
+TOKEN(RLLAVE, "}") [line 4]
+TOKEN(PCOMMA, ";") [line 4]
+TOKEN(END) [line 5]
+
+Scanner exitoso
+

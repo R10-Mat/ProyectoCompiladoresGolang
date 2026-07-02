@@ -13,6 +13,7 @@ class TypeSpec;
 class VarDecl;
 class VarSpec;
 class FieldDecl;
+class BasicType;
 class ArrayType;
 class StructType;
 class PointerType;
@@ -33,6 +34,18 @@ class SwitchStmt;
 class ExpCaseClause;
 class ForStmt;
 class ForClause;
+class BinaryExp;
+class UnaryExprExp;
+class ParenExp;
+class OperandNameExp;
+class BasicLitExp;
+class CompositeLitExp;
+class FunctionLit;
+class SelectorExp;
+class IndexExp;
+class SliceExp;
+class TypeAssertionExp;
+class ArgumentsExp;
 
 class Visitor {
 public:
@@ -49,6 +62,7 @@ public:
     virtual Semantic_types visit(VarDecl* var_decl) = 0;
     virtual Semantic_types visit(VarSpec* var_spec) = 0;
     virtual Semantic_types visit(FieldDecl* field_decl) = 0;
+    virtual Semantic_types visit(BasicType* basic_type) = 0;
     virtual Semantic_types visit(ArrayType* array_type) = 0;
     virtual Semantic_types visit(StructType* struct_type) = 0;
     virtual Semantic_types visit(PointerType* pointer_type) = 0;
@@ -71,6 +85,18 @@ public:
     virtual Semantic_types visit(ForStmt* for_stmt) = 0;
     virtual Semantic_types visit(ForClause* for_clause) = 0;
     //  Parte Nico //
+    virtual Semantic_types visit(BinaryExp* binary_exp) = 0;
+    virtual Semantic_types visit(UnaryExprExp* unary_exp) = 0;
+    virtual Semantic_types visit(ParenExp* paren_exp) = 0;
+    virtual Semantic_types visit(OperandNameExp* operand_name_exp) = 0;
+    virtual Semantic_types visit(BasicLitExp* basic_lit_exp) = 0;
+    virtual Semantic_types visit(CompositeLitExp* composite_lit_exp) = 0;
+    virtual Semantic_types visit(FunctionLit* function_lit) = 0;
+    virtual Semantic_types visit(SelectorExp* selector_exp) = 0;
+    virtual Semantic_types visit(IndexExp* index_exp) = 0;
+    virtual Semantic_types visit(SliceExp* slice_exp) = 0;
+    virtual Semantic_types visit(TypeAssertionExp* type_assertion_exp) = 0;
+    virtual Semantic_types visit(ArgumentsExp* arguments_exp) = 0;
 };
 
 #endif // VISITOR_H

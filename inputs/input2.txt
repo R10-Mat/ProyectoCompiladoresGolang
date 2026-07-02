@@ -1,0 +1,9 @@
+func main() {
+    var a float64 = 1.5;
+    var b float64 = 2.5;
+    var c float64 = a + b;
+    println(c);
+    if c > 3.0 {
+        println(1);
+    };
+};

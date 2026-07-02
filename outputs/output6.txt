@@ -2,7 +2,6 @@
 Fase lexica: OK
 Parseo exitoso
 Fase sintactica: OK
-Fase semantica: OK
-Fase de generacion de codigo: OK
 
 === STDERR ===
+Error semantico: variable no declarada 'y' usada en la funcion 'main'

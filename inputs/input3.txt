@@ -1,0 +1,6 @@
+func main() {
+    var a string = "hello";
+    var b string = " world";
+    var c string = a + b;
+    println(c);
+};

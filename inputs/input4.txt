@@ -1,0 +1,19 @@
+type Point struct {
+    x int;
+    y int;
+};
+
+func (p *Point) Move(dx int, dy int) {
+    p.x = p.x + dx;
+    p.y = p.y + dy;
+};
+
+func main() {
+    var m Point;
+    m = Point{x: 1, y: 2};
+    var p *Point;
+    p = &m;
+    p.Move(10, 20);
+    println(m.x);
+    println(m.y);
+};

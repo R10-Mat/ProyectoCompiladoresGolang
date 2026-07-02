@@ -43,7 +43,7 @@ func main() {
     };
     var arr [3]int;
     var q int;
-    q = *p.x;
+    q = p.x;
     var r *int;
     r = &x;
     var n int;
