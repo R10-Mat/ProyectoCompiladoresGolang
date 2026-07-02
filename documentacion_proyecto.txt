@@ -1,0 +1,1320 @@
+================================================================================
+DOCUMENTACION COMPLETA DEL PROYECTO: COMPILADOR DE GO (subset) en C++
+================================================================================
+Fecha de generacion: 2026-07-02
+Repositorio: ProyectoCompiladoresC-
+Lenguaje fuente: subset de Go (funciones, structs, arrays, punteros, control flow)
+Lenguaje destino: ensamblador x86-64 (sintaxis AT&T, Linux/SysV ABI)
+================================================================================
+
+INDICE
+------
+1. Vision general y arquitectura
+2. Flujo de compilacion paso a paso
+3. Archivos de cabecera (.h) — descripcion detallada
+   3.1  token.h
+   3.2  scanner.h
+   3.3  ast.h
+   3.4  visitor.h
+   3.5  Semantic_types.h
+   3.6  Enviroment.h
+   3.7  parser.h
+   3.8  TypeCheker.h
+   3.9  GenCode.h
+4. Archivos de implementacion (.cpp) — descripcion detallada
+   4.1  main.cpp
+   4.2  token.cpp
+   4.3  scanner.cpp
+   4.4  ast.cpp
+   4.5  visitor.cpp
+   4.6  Semantic_types.cpp
+   4.7  parser.cpp
+   4.8  TypeCheker.cpp
+   4.9  GenCode.cpp
+5. Patrones de diseno usados
+6. Convenciones de generacion de codigo (ABI)
+7. Limitaciones y simplificaciones conocidas
+
+================================================================================
+1. VISION GENERAL Y ARQUITECTURA
+================================================================================
+
+El proyecto implementa un compilador completo para un subconjunto del lenguaje
+Go, dividido en cuatro fases clasicas encadenadas en pipeline:
+
+    Archivo .go
+        |
+        v
+  [ Fase 1: Scanner ]  <-- scanner.cpp / token.h / token.cpp
+        |  produce una secuencia de Tokens
+        v
+  [ Fase 2: Parser  ]  <-- parser.cpp / ast.h / ast.cpp
+        |  produce un Arbol de Sintaxis Abstracta (AST)
+        v
+  [ Fase 3: TypeCheker ]  <-- TypeCheker.cpp / Semantic_types.h / Enviroment.h
+        |  verifica tipos y registra informacion de variables
+        v
+  [ Fase 4: GenCode ]  <-- GenCode.cpp
+        |  recorre el AST y emite instrucciones x86-64 AT&T
+        v
+    output.s  (ensamblador listo para gcc/as)
+
+El proyecto usa el patron de diseno VISITOR para las fases 3 y 4: tanto
+TypeChekerVisitor como GenCode implementan la interfaz Visitor, lo que permite
+agregar nuevas fases sin modificar las clases del AST.
+
+Hay tres autores parciales indicados en los comentarios:
+  - Rayhan: declaraciones de nivel superior y tipos (global/types)
+  - Bruno:  bloques, sentencias y flujo de control (statements)
+  - Nico:   expresiones (expressions)
+
+================================================================================
+2. FLUJO DE COMPILACION PASO A PASO
+================================================================================
+
+PASO 0 — Lectura del archivo fuente (main.cpp)
+  El programa recibe un unico argumento: la ruta al archivo .go de entrada.
+  Lee todo su contenido en un std::string (input).
+
+PASO 1 — Fase Lexica (scanner1)
+  Se crea un Scanner con el texto fuente. La funcion ejecutar_scanner() llama
+  repetidamente a nextToken() y vuelca cada token a <archivo>_tokens.txt para
+  depuracion. Si se encuentra un Token::ERROR el scanner reporta el caracter
+  invalido y termina. Al final escribe "Scanner exitoso".
+
+PASO 2 — Fase Sintactica (scanner2 + parser)
+  Se crea un segundo Scanner (independiente, misma entrada) y se pasa al
+  Parser. El parser llama a parseProgram(), que aplica descenso recursivo
+  consumiendo tokens del scanner y construyendo el AST. Cada regla gramatical
+  tiene un metodo parse* correspondiente. Si hay un error sintactico se lanza
+  std::runtime_error con el token inesperado y la ubicacion. El AST resultante
+  es un objeto Programa* con una lista de TopLevelDecl*.
+
+PASO 3 — Fase Semantica (TypeChekerVisitor)
+  Se crea un GenCode (que internamente contiene un TypeChekerVisitor llamado
+  `tipos`). Se llama gen.tipos.TypeCheker(ast), que ejecuta cinco pasadas
+  sobre el AST:
+    Pasada 1: registra todos los nombres de tipo (TypeDecl) para permitir
+              referencias cruzadas.
+    Pasada 2: resuelve completamente cada tipo (campos de structs, etc.).
+    Pasada 3: registra firmas de funciones y metodos (para llamadas adelante).
+    Pasada 4: procesa declaraciones globales (const/var) en el scope global.
+    Pasada 5: chequea el cuerpo de cada funcion y metodo.
+  Si alguna verificacion falla, imprime "Error semantico: ..." y llama exit(1).
+
+PASO 4 — Generacion de Codigo (GenCode)
+  Se llama gen.generar(ast), que recorre el AST con el patron Visitor y emite
+  instrucciones x86-64 AT&T en un ostringstream (buffer en memoria). Solo al
+  terminar esta fase sin errores se escribe output.s en disco. Esto evita
+  dejar un output.s vacio si el chequeo semantico hubiera fallado.
+
+================================================================================
+3. ARCHIVOS DE CABECERA (.h)
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 token.h
+--------------------------------------------------------------------------------
+Define la clase Token: la unidad basica que produce el scanner.
+
+CLASE: Token
+  Atributos:
+    - type (Token::Type): el tipo del token (enumeracion)
+    - text (string): el lexema original del token
+    - line (int): linea del archivo fuente donde aparecio
+
+  ENUM Token::Type — 99 valores agrupados en:
+    Identificadores:
+      ID         — cualquier identificador que no es palabra clave
+
+    Palabras clave de Go (25):
+      BREAK, CASE, CHAN, CONST, CONTINUE, DEFAULT, DEFER, ELSE, FALLTHROUGH,
+      FOR, FUNC, GO, GOTO, IF, IMPORT, INTERFACE, MAP, PACKAGE, RANGE, RETURN,
+      SELECT, STRUCT, SWITCH, TYPE, VAR
+
+    Operadores y puntuacion (46):
+      Aritmeticos: PLUS(+), NEG(-), MUL(*), DIV(/), MOD(%)
+      Bit a bit:   AND(&), OR(|), CARET(^), LSHIFT(<<), RSHIFT(>>), BITCLEAR(&^)
+      Asignacion compuesta: PLUSASSIGN(+=), NEGASSIGN(-=), MULASSIGN(*=),
+                            DIVASSIGN(/=), MODASSIGN(%=), ANDASSIGN(&=),
+                            ORASSIGN(|=), CARETASSIGN(^=), LSHIFTASSIGN(<<=),
+                            RSHIFTASSIGN(>>=), BITCLEARASSIGN(&^=)
+      Logicos: AND_LOGICAL(&&), OR_LOGICAL(||)
+      Canal:   ARROW(<-)
+      Incremento/decremento: INC(++), DEC(--)
+      Comparacion: EQUAL(==), LES(<), GER(>), DISTINCT(!=), LEQ(<=), GEQ(>=)
+      Asignacion: ASSIGN(=), DEC_ASSIGN(:=)
+      Agrupacion: LPAREN((), RPAREN()), LCORCHETE([), RCORCHETE(]), LLLAVE({), RLLAVE(})
+      Separadores: COMMA(,), PCOMMA(;), PUNTO(.), DOS_PUNTOS(:), TRES_PUNTOS(...)
+      Otros: NOT(!), VIRGULA(~)
+
+    Literales (5):
+      INT_LIT, FLOAT_LIT, IMAGINARY_LIT, RUNE_LIT, STRING_LIT
+
+    Especiales:
+      ERROR — token invalido (caracter no reconocido o literal mal formado)
+      END   — fin de la entrada
+
+  Constructores:
+    Token(Type, int line)                       — token de un solo tipo (ej. PLUS)
+    Token(Type, char c, int line)               — token de un caracter
+    Token(Type, string& source, int first, int last, int line)
+                                                — token extraido de un rango del input
+
+  Metodos estaticos:
+    typeName(Type t) -> string  — devuelve el nombre legible del tipo (usado
+                                  en mensajes de error del parser)
+
+  Operadores:
+    operator<<(ostream&, const Token&)   — imprime el token (para depuracion)
+    operator<<(ostream&, const Token*)   — idem para puntero
+
+--------------------------------------------------------------------------------
+3.2 scanner.h
+--------------------------------------------------------------------------------
+Define el analizador lexico (tokenizador).
+
+CLASE: Scanner
+  Atributos privados:
+    - input (string): el texto fuente completo
+    - first (int):    indice de inicio del lexema actual
+    - current (int):  indice del caracter que se esta examinando
+    - line (int):     numero de linea actual (empieza en 1)
+
+  Constructor:
+    Scanner(const char* in_s) — copia el string fuente e inicializa indices
+
+  Metodos publicos:
+    nextToken() -> Token*
+      El metodo central del scanner. En cada llamada:
+        1. Salta espacios en blanco (espacio, \n, \r, \t), actualizando `line`
+           cuando encuentra '\n'.
+        2. Si llego al final del input retorna Token::END.
+        3. Segun el primer caracter decide la clase del token:
+           - digito o '.' seguido de digito -> llama readNumberToken()
+           - '"' o '`' -> llama readStringToken()
+           - letra o '_' -> lee el identificador completo; busca en el mapa de
+             palabras clave; si no esta, devuelve Token::ID
+           - caracter especial -> switch enorme que cubre todos los operadores,
+             manejando casos de dos caracteres (ej. '=' puede ser ASSIGN o EQUAL)
+           - cualquier otro -> Token::ERROR
+
+    readNumberToken() -> Token*
+      Implementa una maquina de estados para reconocer:
+        - Enteros decimales: 0..9{0..9|_}
+        - Enteros hexadecimales: 0x{hex_digit|_}
+        - Enteros binarios: 0b{0|1|_}
+        - Enteros octales: 0o{0..7|_}
+        - Flotantes: digitos.digitos, o con exponente (e/E), o hex con p/P
+      Reglas de validacion: no puede terminar en '_', no puede tener '__',
+      el prefijo no puede ir seguido directamente de '_' (ej. 0x_A es ERROR).
+      Devuelve INT_LIT para enteros, FLOAT_LIT para flotantes, ERROR si
+      la secuencia no es un literal valido.
+
+    readStringToken() -> Token*
+      Reconoce dos tipos de strings de Go:
+        - Interpreted strings "..." : procesa secuencias de escape (\n, etc.)
+          Un salto de linea literal dentro de "" es ERROR.
+        - Raw strings `...` : acepta cualquier caracter incluyendo saltos de linea.
+      Devuelve STRING_LIT o ERROR si el string no cierra.
+
+    ~Scanner() — destructor (sin cuerpo real, solo libera recursos del compilador)
+
+FUNCION LIBRE: ejecutar_scanner(Scanner*, const string& InputFile)
+  Crea el archivo de salida <InputFile sin extension>_tokens.txt y vuelca
+  todos los tokens del scanner hasta encontrar END o ERROR. Sirve solo para
+  depuracion; el parser usa su propio scanner independiente.
+
+--------------------------------------------------------------------------------
+3.3 ast.h
+--------------------------------------------------------------------------------
+Define todas las clases del Arbol de Sintaxis Abstracta (AST). Es el archivo
+mas extenso de los headers (~543 lineas). Cada nodo del AST tiene un metodo
+accept(Visitor*) que implementa el doble dispatch del patron Visitor.
+
+ENUMERACIONES:
+  BinaryOp  — operadores binarios: PLUS_OP, MINUS_OP, MUL_OP, DIV_OP, MOD_OP,
+               POW_OP, EQ_OP, NEQ_OP, LT_OP, GT_OP, LTE_OP, GTE_OP, AND_OP, OR_OP
+  AssignOp  — operadores de asignacion: PLUS_ASSIGN, NEG_ASSIGN, MUL_ASSIGN,
+               DIV_ASSIGN, ASSIGN
+  UnaryOp   — operadores unarios: POS_OP(+x), NEG_OP(-x), NOT_OP(!x),
+               DEREF_OP(*p), ADDR_OP(&x), INC_OP(x++), DEC_OP(x--)
+
+JERARQUIA DE CLASES:
+
+  Programa
+    - listatopleveldecl: list<TopLevelDecl*>
+    Nodo raiz del AST. Contiene todas las declaraciones de nivel superior.
+
+  TopLevelDecl (abstracta)
+    Padre comun de todo lo que puede aparecer a nivel de paquete.
+    Subclases: Declaration, FunctionDecl, MethodDecl
+
+  Declaration (abstracta, hereda de TopLevelDecl)
+    Padre de las declaraciones que no son funciones ni metodos.
+    Subclases: ConstDecl, TypeDecl, VarDecl
+
+  FunctionDecl (hereda de TopLevelDecl)
+    Representa "func nombre(params) tipo { cuerpo }"
+    Atributos: name, lista_de_parametros, tipo, cuerpo
+
+  MethodDecl (hereda de TopLevelDecl)
+    Representa "func (receptor tipo) nombreMethod(params) tipo { cuerpo }"
+    Atributos: nombreMethod, nombreId (nombre del receptor), puntero (bool:
+    si el receptor es puntero *T), NombreTipoBase, lista_de_parametros, tipo, cuerpo
+
+  ConstDecl (hereda de Declaration)
+    "const ( spec1; spec2; ... )" o "const spec"
+    - constspecList: list<ConstSpec*>
+
+  ConstSpec
+    Una especificacion de constante: "nombre [tipo] = valor"
+    - identifierList, tipo (opcional), expresionlist
+
+  TypeDecl (hereda de Declaration)
+    "type ( spec1; spec2; ... )" o "type spec"
+    - typespecList: list<TypeSpec*>
+
+  TypeSpec
+    Una especificacion de tipo: "nombre tipo"
+    - id (string), tipo (Type*)
+
+  VarDecl (hereda de Declaration)
+    "var ( spec1; spec2; ... )" o "var spec"
+    - varspecList: list<VarSpec*>
+
+  VarSpec
+    "nombre [tipo] [= valores]"
+    - identifierlist, tipo (opcional), expresionlist (opcional)
+
+  FieldDecl
+    Un campo de struct: "nombre1, nombre2 tipo"
+    - identifierlist, type
+
+  TIPOS (jerarquia Type):
+    Type (abstracta) — metodo accept devuelve Semantic_types
+      BasicType   — tipo basico identificado por nombre: "int", "float64", "bool",
+                    "string", o nombre de tipo definido por usuario
+      ArrayType   — "[longitud]tipoElemento": length (Exp*), elementtype (Type*)
+      StructType  — "struct { campo1; campo2; ... }": declaraciones (list<FieldDecl*>)
+      PointerType — "*tipo": basetype (Type*)
+
+  ParameterList, ParameterDecl
+    Lista de parametros de una funcion. Cada ParameterDecl tiene una lista de
+    identificadores y un tipo (varios params del mismo tipo se agrupan).
+
+  IdentifierList
+    Lista de identificadores separados por coma: "a, b, c"
+    - lista_ids: list<string>
+
+  ExpList
+    Lista de expresiones separadas por coma.
+    - lista_exp: vector<Exp*>
+
+  BLOQUES Y SENTENCIAS:
+    Block
+      "{" StatementList "}"
+      - lista_statements: StmtList*
+
+    StmtList
+      Secuencia de sentencias terminadas en ";"
+      - statements: list<Stmt*>
+
+    Stmt (abstracta) — todos los tipos de sentencia heredan de aqui:
+
+      DeclarationStmt  — var/const/type dentro de un cuerpo de funcion
+      BlockStmt        — un bloque anonimo "{ ... }"
+      ExpresionStmt    — una expresion usada como sentencia (ej. llamada a funcion)
+      IncDecStmt       — "expr++" o "expr--" ; atributos: expresion, op (UnaryOp)
+      Assigment        — "lista = lista" o "lista op= lista"
+                         atributos: expresion_list_id, expresion_list_values, op
+      ReturnStmt       — "return [expr, ...]" ; atributo: expresion_list (nullable)
+      BreakStmt        — "break"
+      ContinueStmt     — "continue"
+      IfStmt           — "if expr { ... } [else { ... } | else if ...]"
+                         atributos: expresion, cuerpo_if, cuerpo_else, if_anidado
+      SwitchStmt       — "switch [expr] { case...: ... default: ... }"
+                         atributos: expresion (nullable), exp_case_clause
+      ExpCaseClause    — un "case" o "default" dentro de switch:
+                         expresion_list (null si default), statement_list
+      ForStmt          — "for [expr | ForClause] { ... }"
+                         atributos: expresion, for_clause, block
+      ForClause        — "init ; cond ; post" del for clasico:
+                         asignacion1, expresion (cond), asignacion2/inc_dec_stmt
+
+  EXPRESIONES (jerarquia Exp):
+    Exp (abstracta) — todos los tipos de expresion heredan de aqui
+
+      BinaryExp        — "left op right"; atributos: left, right, op (BinaryOp)
+      UnaryExprExp     — "op expr" o "expr op"; atributos: expresion, op, postfix
+      ParenExp         — "(expr)"; atributo: expresion
+      OperandNameExp   — un identificador o nombre de variable; atributo: name
+      BasicLitExp      — un literal (int, float, string, rune); atributos: tipoLiteral, valor
+      KeyedElement     — "key: value" o solo "value" en un literal compuesto
+      CompositeLitExp  — "Tipo{elem, elem, ...}"; atributos: tipo, elementos
+      FunctionLit      — "func(params) tipo { cuerpo }"; literal de funcion anonima
+      SelectorExp      — "expr.campo"; atributos: expresion, campo
+      IndexExp         — "expr[indice]"; atributos: expresion, indice
+      SliceExp         — "expr[low:high:max]"; atributos: expresion, low, high, max
+      TypeAssertionExp — "expr.(tipo)"; atributos: expresion, tipo
+      ArgumentsExp     — "funcion(args...)"; atributos: funcion (Exp*), args, variadic
+
+  FUNCIONES LIBRES:
+    tokenToBinaryOp(Token::Type) -> BinaryOp
+    tokenToUnaryOp(Token::Type)  -> UnaryOp
+      Convierten tokens a las enumeraciones de operadores del AST.
+
+    Exp::binopToString(BinaryOp) -> string
+    Exp::unopToString(UnaryOp)   -> string
+      Convierten operadores a strings legibles (para mensajes de error).
+
+--------------------------------------------------------------------------------
+3.4 visitor.h
+--------------------------------------------------------------------------------
+Define la interfaz base del patron Visitor. Toda clase que quiera recorrer el
+AST debe implementar esta interfaz.
+
+CLASE: Visitor (abstracta)
+  Declara un metodo visit() virtual puro para CADA tipo de nodo del AST.
+  Todos los metodos devuelven Semantic_types (el tipo semantico resultante de
+  visitar ese nodo; para sentencias y declaraciones siempre es VOID).
+
+  Los 38 metodos visit() cubren:
+    Nodos de nivel superior: Programa, FunctionDecl, MethodDecl, ConstDecl,
+    ConstSpec, TypeDecl, TypeSpec, VarDecl, VarSpec, FieldDecl
+    Tipos: BasicType, ArrayType, StructType, PointerType
+    Parametros: ParameterList, ParameterDecl
+    Bloques/sentencias: Block, StmtList, DeclarationStmt, BlockStmt, ExpresionStmt,
+    IncDecStmt, Assigment, ReturnStmt, BreakStmt, ContinueStmt, IfStmt, SwitchStmt,
+    ExpCaseClause, ForStmt, ForClause
+    Expresiones: BinaryExp, UnaryExprExp, ParenExp, OperandNameExp, BasicLitExp,
+    CompositeLitExp, FunctionLit, SelectorExp, IndexExp, SliceExp,
+    TypeAssertionExp, ArgumentsExp
+
+--------------------------------------------------------------------------------
+3.5 Semantic_types.h
+--------------------------------------------------------------------------------
+Define la clase Semantic_types: la representacion interna de tipos usada por
+el TypeCheker y el GenCode.
+
+CLASE: Semantic_types
+  ENUM Kind: NOTYPE, VOID, INT, BOOL, FLOAT64, STRING, POINTER, ARRAY, STRUCT
+
+  Atributos privados:
+    - kind: el tipo basico
+    - nombre_struct (string): nombre del struct (cuando kind==STRUCT)
+    - tipo_base (shared_ptr<Semantic_types>): tipo apuntado (POINTER) o tipo
+      de los elementos (ARRAY)
+    - longitud_arreglo (long): solo para kind==ARRAY
+    - campos_struct (vector<pair<string,shared_ptr<Semantic_types>>>):
+      lista de campos con sus nombres y tipos (para STRUCT)
+
+  Constructores:
+    Semantic_types()         — crea un NOTYPE
+    Semantic_types(Kind)     — crea un tipo simple
+
+  FABRICAS estaticas:
+    makePointer(apuntado) -> Semantic_types   — crea un tipo puntero
+    makeArray(elemento, longitud) -> Semantic_types — crea un tipo arreglo
+    makeStruct(nombre, campos)  -> Semantic_types  — crea un tipo struct
+
+  Consultas:
+    getKind()       -> Kind
+    isPointer()     -> bool
+    isArray()       -> bool
+    isStruct()      -> bool
+    isNumeric()     -> bool  (INT o FLOAT64)
+    baseType()      -> const Semantic_types*  (tipo apuntado o elemento)
+    arrayLength()   -> long
+    structName()    -> const string&
+    setStructName() — asigna nombre despues de resolver un struct anonimo
+    fieldType(nombre_campo) -> Semantic_types  — tipo de un campo (NOTYPE si no existe)
+    fieldCount()    -> size_t  — cantidad de campos
+    fieldIndex(nombre_campo) -> int  — indice 0-based del campo (-1 si no existe)
+    fieldNameAt(i)  -> const string&  — nombre del campo en posicion i
+
+  Compatibilidad:
+    match(other)          — true si los tipos son identicos (recursivo para
+                            POINTER/ARRAY, por nombre para STRUCT)
+    canPromoteTo(destino) — INT puede promover a FLOAT64 (extension)
+    isConvertibleTo(dest) — conversion explicita T(x): mismo tipo o ambos numericos
+
+  Conversion a string:
+    to_string() -> string   — "int", "float64", "*Point", "[10]int", "struct Foo", etc.
+
+  Utilidades:
+    string_to_kind(cadena) -> Kind  — mapa estatico de strings a Kind
+    set_basic_type(cadena) -> bool  — asigna el kind si la cadena es un tipo basico
+
+--------------------------------------------------------------------------------
+3.6 Enviroment.h
+--------------------------------------------------------------------------------
+Define la plantilla generica Environment<T> para manejar entornos de variables
+con alcance anidado (scoped symbol table).
+
+CLASE TEMPLATE: Environment<T>
+  Implementa una pila de tablas hash (ribs). Cada "rib" es un scope lexicico.
+  Al entrar a un bloque se apila un nuevo rib; al salir se desapila.
+
+  Atributos privados:
+    - ribs: vector<unordered_map<string, T>>
+
+  Metodo privado:
+    search_rib(var) -> int  — busca la variable en todos los ribs de afuera
+                              hacia adentro; devuelve el indice o -1
+
+  Gestion de scopes:
+    add_level()     — abre un nuevo scope (push de un rib vacio)
+    remove_level()  — cierra el scope mas interno (pop)
+    clear()         — elimina todos los scopes
+
+  Gestion de variables:
+    add_var(var, value) — declara variable con valor en el scope actual
+    add_var(var)        — declara variable con valor por defecto T{}
+    update(var, value)  — actualiza el valor en el scope donde fue declarada;
+                          devuelve false si no existe
+
+  Consultas:
+    check(var)      -> bool  — true si la variable existe en algun scope
+    lookup(var)     -> T     — devuelve el valor; imprime advertencia si no existe
+    lookup(var, T&) -> bool  — version con salida por referencia
+
+  USO EN EL PROYECTO:
+    TypeChekerVisitor usa Environment<Semantic_types> (alias `entorno`) para
+    registrar variables y buscar su tipo durante el chequeo semantico. Las
+    funciones y metodos abren un nivel al entrar y lo cierran al salir.
+    GenCode NO usa Environment; usa un mapa plano (memoria) de variable->offset
+    porque dentro de una funcion ya no hay scopes anidados que resolver.
+
+--------------------------------------------------------------------------------
+3.7 parser.h
+--------------------------------------------------------------------------------
+Define el parser de descenso recursivo.
+
+CLASE: Parser
+  Atributos privados:
+    - scanner: Scanner*  — fuente de tokens
+    - current: Token*    — token actual (lookahead de 1)
+    - previous: Token*   — token anterior (usado en reglas que necesitan saber
+                           que se acaba de consumir)
+    - sinLiteralCompuesto: bool — flag que indica que estamos en la cabecera
+      de un if/for/switch; evita que "id {" se interprete como literal
+      compuesto cuando la '{' es en realidad la apertura del bloque
+
+  Metodos privados de utilidad:
+    match(ttype)   — si el token actual es `ttype`, avanza y devuelve true
+    check(ttype)   — mira sin avanzar; devuelve true si el actual es `ttype`
+    advance()      — avanza al siguiente token; elimina el anterior de memoria
+    isAtEnd()      — true si el token actual es Token::END
+    expect(ttype)  — como match pero lanza excepcion si no coincide
+    error(expected)— lanza std::runtime_error con mensaje descriptivo [noreturn]
+
+  METODOS DE PARSE (uno por regla gramatical):
+
+  Nivel superior (autor: Rayhan):
+    parseProgram()       -> Programa*         — lista de TopLevelDecl sep. por ";"
+    parseTopLevelDecl()  -> TopLevelDecl*     — const|type|var|func|method
+    parseDeclaration()   -> Declaration*      — const|type|var
+    parseFunctionDecl()  -> FunctionDecl*     — "func" id "(" params ")" [tipo] block
+    parseMethodDecl()    -> MethodDecl*       — "func" "(" id[*]id ")" id "(" params ")" [tipo] block
+    parseConstDecl()     -> ConstDecl*        — "const" ( spec | "(" {spec ";"} ")" )
+    parseConstSpec()     -> ConstSpec*        — ids [tipo] "=" explist
+    parseTypeDecl()      -> TypeDecl*         — "type" ( spec | "(" {spec ";"} ")" )
+    parseTypeSpec()      -> TypeSpec*         — id tipo
+    parseVarDecl()       -> VarDecl*          — "var" ( spec | "(" {spec ";"} ")" )
+    parseVarSpec()       -> VarSpec*          — ids [tipo] ["=" explist]
+    parseIdentifierList()-> IdentifierList*   — id {"," id}
+    parseType()          -> Type*             — id | struct{} | *tipo | [exp]tipo | nullptr
+    parseParameterList() -> ParameterList*    — paramDecl {"," paramDecl}
+    parseParameterDecl() -> ParameterDecl*    — ids tipo
+    parseFieldDecl()     -> FieldDecl*        — ids tipo
+    parseExpList()       -> ExpList*          — exp {"," exp}
+
+  Bloques y sentencias (autor: Bruno):
+    parseBlock()           -> Block*          — "{" stmtlist "}"
+    parseStmtList()        -> StmtList*       — {stmt ";"} (hasta "}" o case/default)
+    parseStmt()            -> Stmt*           — detecta el tipo de sentencia por lookahead:
+                                                declaration | block | return | break |
+                                                continue | if | for | switch |
+                                                explist [++|--|assign|=]
+    parseDeclarationStmt() -> DeclarationStmt*
+    parseBlockStmt()       -> BlockStmt*
+    parseExpresionStmt(e)  -> ExpresionStmt*  — recibe la expresion ya parseada
+    parseIncDecStmt(e)     -> IncDecStmt*     — e++ o e--
+    parseAssigment(el)     -> Assigment*      — lista op= lista
+    parseReturnStmt()      -> ReturnStmt*     — "return" [explist]
+    parseBreakStmt()       -> BreakStmt*
+    parseContinueStmt()    -> ContinueStmt*
+    parseIfStmt()          -> IfStmt*         — "if" exp block ["else" (block | ifstmt)]
+    parseSwitchStmt()      -> SwitchStmt*     — "switch" [exp] "{" {case} "}"
+    parseExpCaseClause()   -> ExpCaseClause*  — "case" explist ":" stmts | "default" ":" stmts
+    parseForStmt()         -> ForStmt*        — "for" [exp | ForClause] block (4 casos)
+    parseForClause(e)      -> ForClause*      — [asig1] ";" [cond] ";" [asig2|incdec]
+
+  Expresiones (autor: Nico) — jerarquia de precedencia ascendente:
+    parseExp()              -> Exp*  — nivel mas bajo: OR logico (||)
+    parseAndExpr()          -> Exp*  — AND logico (&&)
+    relationParseExp()      -> Exp*  — comparacion (==, !=, <, >, <=, >=)
+    additiveParseExp()      -> Exp*  — suma/resta/or-bit (+, -, |)
+    multiplicateParseExp()  -> Exp*  — mult/div/mod/and-bit (*, /, %, &)
+    parseUnaryExpr()        -> Exp*  — operadores unarios prefijos (+, -, !, *, &)
+    primaryParseExp()       -> Exp*  — sufijos: .campo, [indice], (args), .(tipo)
+    operandParseExp()       -> Exp*  — atomos: id, literal, (expr), func literal,
+                                       literal compuesto
+    parseLiteralValue()     -> vector<KeyedElement*>  — "{" [key:] val, ... "}"
+    compositeLiteralParseExp()-> Exp*  — tipo "{" elementos "}"
+    functionLiteralParseExp() -> FunctionLit*  — "(" params ")" [tipo] block
+    basicLiteralParseExp()    -> Exp*  — INT_LIT | FLOAT_LIT | STRING_LIT | ...
+
+--------------------------------------------------------------------------------
+3.8 TypeCheker.h
+--------------------------------------------------------------------------------
+Define el visitor de analisis semantico.
+
+STRUCT: FunctionSignature
+  - param_types: vector<Semantic_types>  — tipos de los parametros en orden
+  - return_types: Semantic_types         — tipo de retorno (VOID si no retorna)
+
+CLASE: TypeChekerVisitor (implementa Visitor)
+  Atributos publicos (accedidos tambien por GenCode):
+    - tabla_funciones: unordered_map<string, FunctionSignature>
+        Clave: nombre de la funcion, o "TipoBase_metodo" para metodos.
+        Llenada en la Pasada 3 antes de analizar cuerpos.
+
+    - fun_var_contador: unordered_map<string, int>
+        Cuantas variables locales (params + declaradas) tiene cada funcion.
+        Usado por GenCode para calcular el tamaño del stack frame.
+
+    - tabla_tipos: unordered_map<string, Semantic_types>
+        Tipos nombrados declarados con "type". Llenada en pasadas 1 y 2.
+
+    - valores_const: unordered_map<string, long>
+        Valores enteros de constantes conocidas en tiempo de compilacion.
+        Usado para resolver el tamaño de ArrayType (que debe ser constante).
+
+    - entorno: Environment<Semantic_types>
+        El scope actual de variables con su tipo.
+
+    - nombre_funcion_actual: string  — para mensajes de error descriptivos
+    - tipo_retorno_actual: Semantic_types  — para validar "return expr"
+    - tipo_switch_actual: Semantic_types   — para validar tipos en "case"
+    - dentro_de_bucle: int  — contador de for anidados (break/continue validos
+                               solo cuando > 0)
+    - locales_actual: int   — cantidad de locales en la funcion actual
+
+  Metodo principal:
+    TypeCheker(Programa*) — punto de entrada; llama visit(programa)
+
+  Metodo auxiliar:
+    evalConstIntExpr(Exp*) -> long
+      Evalua una expresion constante entera en tiempo de compilacion.
+      Lanza error y termina el proceso si la expresion no es constante.
+
+  Metodos visit (uno por nodo del AST, 38 en total):
+    [Ver seccion 4.8 para descripcion detallada de cada uno]
+
+--------------------------------------------------------------------------------
+3.9 GenCode.h
+--------------------------------------------------------------------------------
+Define el visitor de generacion de codigo x86-64.
+
+CLASE: GenCode (implementa Visitor)
+  Atributos publicos:
+    - out: ostream&  — donde se escribe el ensamblador
+    - tipos: TypeChekerVisitor  — resultado del analisis semantico (contiene
+              las tablas de funciones, tipos, variables y valores const)
+    - memoria: unordered_map<string, int>  — nombre de variable -> offset en
+              el frame actual (%rbp - offset). Se limpia por funcion.
+    - memoriaGlobal: unordered_map<string, bool>  — variables globales (en .data)
+    - tipos_var: unordered_map<string, Semantic_types>  — tipo de cada variable
+              local (se limpia por funcion)
+    - tipos_var_globales: unordered_map<string, Semantic_types>  — persiste entre
+              funciones; contiene el tipo de const/var globales
+    - offset: int  — proximo offset libre (parte en -8, decrece de 8 en 8)
+    - labelcont: int  — contador para generar etiquetas unicas (if_0, for_1, ...)
+    - entornoFuncion: bool  — true mientras se esta dentro de una funcion
+    - currentBreakLabel: string  — etiqueta a la que salta "break"
+    - currentContinueLabel: string  — etiqueta a la que salta "continue"
+    - nombreFuncion: string  — nombre de la funcion actual (para "jmp .end_X")
+    - necesitaConcatString: bool  — si se usa "+" entre strings, se emite el
+              helper str_concat
+    - stringLiterals: unordered_map<string, string>  — cache de literales string
+              ya emitidos en .data (evita duplicados)
+    - stringLitCont: int  — contador para etiquetas de string
+    - inicializacionesGlobales: vector<pair<string, Exp*>>  — inicializadores de
+              variables/consts globales; se ejecutan en __init_globals
+
+  Constructor:
+    GenCode(ostream& out) — recibe el stream de salida
+
+  Metodo principal:
+    generar(Programa*) — punto de entrada del generador de codigo
+
+  Metodos auxiliares (no son del patron Visitor):
+    reservarSlots(n) -> int
+      Reserva n slots de 8 bytes en el frame actual y devuelve el offset del
+      primero. Usado para variables locales y temporales.
+
+    tipoDe(Exp*) -> Semantic_types
+      Determina el tipo estatico de una expresion sin usar el entorno del
+      TypeChecker (ya cerrado). Usa las tablas planas tipos_var y tipos_var_globales.
+
+    tryConstFoldInt(Exp*, long&) -> bool
+      Plegado de constantes: evalua la expresion sin emitir codigo si es una
+      expresion constante entera. Optimizacion basica.
+
+    tryConstFoldFloat(Exp*, double&) -> bool
+      Idem para flotantes.
+
+    etiquetaParaString(valor) -> string
+      Registra (o reutiliza) un literal string en .data y devuelve su etiqueta.
+
+    emitirDireccion(Exp*)
+      Emite codigo que deja la DIRECCION (no el valor) de una expresion lvalue
+      en %rax. Soporta: variable simple, campo de struct (SelectorExp),
+      elemento de arreglo (IndexExp), dereferencia de puntero (UnaryExprExp DEREF).
+
+    emitStrConcatHelperSiHaceFalta()
+      Emite la funcion auxiliar str_concat en ensamblador. Llama a strlen,
+      malloc, strcpy y strcat de la libc. Solo se emite si se uso "+" con strings.
+
+================================================================================
+4. ARCHIVOS DE IMPLEMENTACION (.cpp)
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 main.cpp
+--------------------------------------------------------------------------------
+El punto de entrada del compilador. Orquesta las cuatro fases.
+
+main(argc, argv):
+  1. Verifica que haya exactamente 1 argumento (el archivo fuente).
+  2. Abre el archivo y lee su contenido completo en `input`.
+  3. Crea dos Scanners (scanner1 para volcar tokens, scanner2 para el parser).
+  4. Llama ejecutar_scanner(&scanner1, argv[1]) — fase lexica + debug.
+  5. Imprime "Fase lexica: OK".
+  6. Crea un Parser con scanner2.
+  7. Llama parser.parseProgram() dentro de un try/catch — fase sintactica.
+     Si hay excepcion imprime el error y retorna 1.
+  8. Imprime "Fase sintactica: OK".
+  9. Crea un ostringstream (asmBuffer) y un GenCode(asmBuffer).
+ 10. Llama gen.tipos.TypeCheker(ast) — fase semantica.
+     Si hay error semantico el TypeCheker llama exit(1) directamente.
+ 11. Imprime "Fase semantica: OK".
+ 12. Llama gen.generar(ast) — fase de generacion de codigo.
+ 13. Abre output.s y vuelca asmBuffer.str() — solo ahora se escribe a disco.
+ 14. Imprime "Fase de generacion de codigo: OK".
+ 15. delete ast; libera el AST.
+
+Nota importante: el GenCode se genera a un buffer (ostringstream) para que
+si el chequeo semantico falla, no quede un output.s vacio engaosamente en disco.
+
+--------------------------------------------------------------------------------
+4.2 token.cpp
+--------------------------------------------------------------------------------
+Implementa los constructores de Token y el operador de salida.
+
+Constructor Token(Type, int line):
+  Crea un token sin texto (para tokens de un solo tipo: PLUS, LPAREN, etc.)
+
+Constructor Token(Type, char c, int line):
+  Crea un token de un solo caracter; text = string(1, c)
+
+Constructor Token(Type, string& source, int first, int last, int line):
+  Extrae el lexema del string fuente: text = source.substr(first, last - first)
+
+typeName(Type t) -> string:
+  Gran switch con el nombre legible de cada tipo de token. Usado en mensajes
+  de error del parser ("se esperaba 'LPAREN', se encontro 'ID'").
+
+operator<<:
+  Imprime el token en formato legible: "[TIPO linea:N] texto"
+
+--------------------------------------------------------------------------------
+4.3 scanner.cpp
+--------------------------------------------------------------------------------
+[Ver descripcion en seccion 3.2 — implementa los metodos del header]
+
+Detalles de implementacion adicionales:
+
+  Keywords (mapa estatico):
+    Un unordered_map<string, Token::Type> con las 25 palabras clave de Go.
+    El scanner lo consulta despues de leer un identificador para diferenciar
+    "for" (FOR) de "formato" (ID).
+
+  nextToken() — manejo de comentarios:
+    - "//" : consume hasta el final de la linea y llama nextToken() recursivamente
+    - "/* */" : consume hasta "*/" contando saltos de linea; si el comentario
+      no cierra devuelve Token::ERROR
+
+  readNumberToken() — maquina de estados con goto:
+    Usa un enum State interno y un loop con switch. El `goto end_loop` sale del
+    loop cuando se encuentra un caracter que no es parte del numero. Despues
+    de end_loop verifica validaciones adicionales (doble '_', etc.) y decide
+    si el token es INT_LIT o FLOAT_LIT.
+
+  readStringToken() — maquina de estados:
+    Tres estados: STRING_RAW, STRING_INTERPRETED, STRING_ESCAPE.
+    Para strings interpretados, '\' pone el estado en ESCAPE; el siguiente
+    caracter (sea cual sea) vuelve a INTERPRETED. Un '\n' sin escape en
+    un string interpretado devuelve ERROR.
+
+--------------------------------------------------------------------------------
+4.4 ast.cpp
+--------------------------------------------------------------------------------
+Contiene los constructores, destructores y metodos accept() de todos los nodos
+del AST. Los metodos accept() son todos de la forma:
+  void/Semantic_types NodoX::accept(Visitor* v) { return v->visit(this); }
+Esto implementa el segundo dispatch del patron Visitor (el primero es llamar
+accept, el segundo es la resolucion del metodo visit() sobreescrito).
+
+Los destructores liberan memoria de forma recursiva eliminando hijos.
+
+Funciones libres:
+  tokenToBinaryOp(Token::Type) -> BinaryOp:
+    Switch que mapea tokens a operadores binarios del AST.
+  tokenToUnaryOp(Token::Type) -> UnaryOp:
+    Idem para operadores unarios.
+  Exp::binopToString, Exp::unopToString:
+    Convierten las enumeraciones a strings para mensajes de error.
+
+--------------------------------------------------------------------------------
+4.5 visitor.cpp
+--------------------------------------------------------------------------------
+No contiene implementaciones propias; solo la definicion del destructor virtual
+de la clase Visitor (necesario para que las clases derivadas no tengan undefined
+behavior al destruirse a traves de un puntero base).
+
+--------------------------------------------------------------------------------
+4.6 Semantic_types.cpp
+--------------------------------------------------------------------------------
+Archivo vacio (solo include de cabecera). Toda la implementacion de
+Semantic_types esta en el header (clase con metodos inline).
+
+--------------------------------------------------------------------------------
+4.7 parser.cpp
+--------------------------------------------------------------------------------
+[Ver seccion 3.7 — implementa todos los metodos del header]
+
+DETALLES IMPORTANTES DE IMPLEMENTACION:
+
+  sinLiteralCompuesto (ambiguedad Go clasica):
+    Go tiene una ambiguedad: en "if Punto{1,2} { }" la llave '{' que sigue
+    al nombre de tipo se parece a la apertura del bloque del if. El parser
+    real de Go la resuelve con un flag similar. Este parser lo llama
+    `sinLiteralCompuesto`: cuando es true (dentro de la cabecera de if/for/
+    switch), "id {" NO se interpreta como literal compuesto.
+    Se restaura a false dentro de "()" y "[]" donde la ambiguedad no existe.
+
+  parseStmt() — logica de decision:
+    Lee primero las palabras clave que inician sentencias unicas (return,
+    break, continue, if, for, switch, var, const, type, "{").
+    Para cualquier otra cosa, parsea una ExpList. Luego mira el siguiente
+    token: si es "++" o "--" -> IncDecStmt; si es un operador de asignacion
+    -> Assigment; si no -> ExpresionStmt (llamada a funcion como sentencia).
+
+  parseForStmt() — 4 casos:
+    Caso 1: "for { ... }" — bucle infinito
+    Caso 2: "for ; cond ; post { ... }" — ForClause con init vacio
+    Caso 3: "for init ; cond ; post { ... }" — ForClause completo
+    Caso 4: "for cond { ... }" — bucle while
+
+  primaryParseExp() — sufijos postfijos:
+    Loop que sigue consumiendo sufijos mientras los haya: .campo, .(tipo),
+    [indice], [low:high:max], (args). Cada iteracion construye un nodo
+    nuevo que envuelve al anterior.
+
+  parseLiteralValue():
+    Dentro de "{}" de un literal compuesto, parsea pares "key: value" o solo
+    "value". La clave puede ser cualquier expresion (el TypeCheker verifica
+    que sea un identificador de campo para structs).
+
+--------------------------------------------------------------------------------
+4.8 TypeCheker.cpp
+--------------------------------------------------------------------------------
+[Ver seccion 3.8 — implementa TypeChekerVisitor]
+
+DESCRIPCION DETALLADA DE CADA visit():
+
+  visit(Programa*):
+    Las cinco pasadas descritas en el flujo de compilacion (seccion 2).
+
+  visit(FunctionDecl*):
+    Guarda el contexto previo (nombre, tipo de retorno, contador de locales).
+    Abre un nivel en el entorno.
+    Registra los parametros con su tipo en el entorno.
+    Visita el cuerpo (Block).
+    Al salir guarda fun_var_contador[nombre] = parametros + locales_actual.
+    Restaura el contexto previo.
+
+  visit(MethodDecl*):
+    Similar a FunctionDecl pero:
+    - La clave en tabla_funciones es "TipoBase_nombreMetodo"
+    - Registra el receptor como primera variable (nombreId -> tipoReceptor)
+    - Si es metodo de puntero (*T), el tipo del receptor es POINTER(T)
+    - Verifica que el TipoBase este en tabla_tipos
+
+  visit(ConstSpec*):
+    Verifica que la cantidad de nombres e inicializadores coincida.
+    Para cada par (nombre, valor): infiere el tipo, verifica compatibilidad,
+    registra en el entorno y guarda el valor entero en valores_const si
+    la expresion es constante (para resolver tamaños de arreglos).
+
+  visit(VarSpec*):
+    Similar a ConstSpec pero permite no tener inicializador (declara con
+    valor por defecto implicito segun el tipo).
+
+  visit(BasicType*):
+    Busca el nombre en los tipos basicos (int/float64/bool/string/void).
+    Si no es basico, busca en tabla_tipos (tipos definidos por el usuario).
+    Error si no se encuentra.
+
+  visit(ArrayType*):
+    Evalua la longitud con evalConstIntExpr (debe ser constante entera >= 0).
+    Devuelve Semantic_types::makeArray(tipoElemento, longitud).
+
+  visit(StructType*):
+    Itera sobre los FieldDecl, construye el vector de campos y devuelve
+    Semantic_types::makeStruct("", campos). El nombre se asigna despues
+    por el TypeSpec que lo envuelve.
+
+  visit(Block*):
+    Abre un nuevo nivel en el entorno, visita la lista de sentencias, cierra.
+
+  visit(IncDecStmt*):
+    Verifica que la expresion sea de tipo INT (++ y -- solo aplican a int).
+
+  visit(Assigment*):
+    Verifica que los tamaños de las listas coincidan.
+    Para operadores compuestos (+=, etc.) prohibe asignacion multiple.
+    Para cada par (izq, der) verifica compatibilidad de tipos.
+
+  visit(ReturnStmt*):
+    Si la funcion es void: verifica que no haya valor de retorno.
+    Si no es void: verifica que haya valor y que su tipo coincida con
+    tipo_retorno_actual.
+
+  visit(BreakStmt*) / visit(ContinueStmt*):
+    Verifica que dentro_de_bucle > 0 (solo validos dentro de un for).
+
+  visit(IfStmt*):
+    Verifica que la condicion sea BOOL.
+    Visita cuerpo_if, if_anidado (else if) y cuerpo_else.
+
+  visit(SwitchStmt*):
+    Guarda el tipo de la expresion del switch en tipo_switch_actual.
+    Cada case se verifica contra ese tipo.
+
+  visit(ForStmt*):
+    Incrementa dentro_de_bucle para permitir break/continue.
+    Si tiene ForClause: abre un nivel (para la variable del init) y visita.
+    Si tiene condicion: verifica que sea BOOL.
+
+  visit(BinaryExp*):
+    Infiere los tipos de ambos operandos y verifica segun el operador:
+    - && y || requieren ambos BOOL
+    - comparacion: tipos compatibles o promovibles
+    - + con dos STRING: devuelve STRING
+    - aritmetica: requiere ambos numericos; devuelve el tipo mas amplio
+
+  visit(OperandNameExp*):
+    Reconoce "true"/"false" como BOOL.
+    Busca el nombre en el entorno (variables).
+    Si no esta, busca en tabla_funciones (funciones como valores, poco comun).
+    Error si no se encuentra.
+
+  visit(UnaryExprExp*):
+    - POS_OP / NEG_OP: requiere numerico, devuelve el mismo tipo
+    - NOT_OP: requiere BOOL, devuelve BOOL
+    - ADDR_OP(&x): devuelve POINTER(tipo de x)
+    - DEREF_OP(*p): requiere que p sea POINTER, devuelve el tipo apuntado
+
+  visit(CompositeLitExp*):
+    Para STRUCT: verifica campos con clave (nombre -> tipo correcto) o
+    sin clave (posicional, solo chequea tipo de cada expresion).
+    Para ARRAY: verifica que no haya mas elementos que la longitud y que
+    cada elemento tenga el tipo correcto.
+
+  visit(ArgumentsExp*):
+    Tres casos:
+    1. Conversion de tipo T(x): nombre es un tipo conocido; 1 argumento;
+       verifica que sea convertible (isConvertibleTo).
+    2. Builtins print/println: acepta cualquier tipo, no verifica.
+    3. Llamada a funcion: verifica que exista y que la aridad coincida;
+       verifica el tipo de cada argumento.
+    4. Llamada a metodo p.M(args): busca "TipoBase_M" en tabla_funciones;
+       verifica aridad.
+    5. Llamada a expresion arbitraria: acepta sin verificar (generalizacion).
+
+--------------------------------------------------------------------------------
+4.9 GenCode.cpp
+--------------------------------------------------------------------------------
+[Ver seccion 3.9 — implementa GenCode]
+
+DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
+
+  FUNCIONES AUXILIARES LIBRES (namespace anonimo):
+
+  ARG_REGS_INT[]:
+    Array con los 6 registros enteros de la ABI SysV para argumentos:
+    %rdi, %rsi, %rdx, %rcx, %r8, %r9. Los flotantes van en %xmm0..%xmm7.
+
+  tamanoFrameAlineado(slots) -> int:
+    Calcula el tamaño del frame = slots*8 bytes, alineado a multiplos de 16.
+    Requerido por la ABI SysV: %rsp debe ser multiple de 16 en cada `call`.
+
+  registrarVariable(gc, nombre, tipo):
+    Si estamos dentro de una funcion (entornoFuncion==true): reserva un slot
+    en el frame con reservarSlots(1) y lo registra en memoria[] y tipos_var[].
+    Si somos globales: registra en memoriaGlobal[] (solo marca que existe;
+    la instruccion ".zero 8" se emite en visit(Programa*)).
+
+  emitirAlmacenar(gc, target, tipoValor):
+    Almacena el valor actual (%rax o %xmm0 segun sea float) en la ubicacion
+    de la expresion `target`. Soporta:
+    - Variable simple (OperandNameExp): movq %rax, -N(%rbp) o nombre(%rip)
+    - Caso general (campo/elemento/deref): preserva el valor, calcula la
+      direccion con emitirDireccion, y almacena.
+
+  emitirArgumentos(gc, args, offsetInt, tiposEsperados):
+    Prepara los argumentos para una llamada a funcion.
+    1. Asigna un registro a cada argumento segun su tipo (entero vs flotante).
+       offsetInt permite reservar los primeros registros enteros (para metodos
+       donde %rdi esta ocupado por el receptor).
+    2. Evalua cada argumento y lo pone en la pila (float: subq $8, %rsp +
+       movsd; entero: pushq %rax).
+    3. Saca de la pila en orden inverso hacia los registros de la ABI.
+    Si se conocen los tipos esperados, aplica conversion INT->FLOAT64 si hace falta.
+
+  emitirPrintDeTipo(gc, t):
+    Emite una llamada a printf con el formato correcto segun el tipo:
+    - FLOAT64: "%f \n"
+    - STRING:  "%s \n"
+    - cualquier otro (INT, BOOL, POINTER...): "%ld \n"
+
+  tryConstFoldIntImpl / tryConstFoldFloatImpl:
+    Evaluacion en tiempo de compilacion (constant folding) para expresiones
+    constantes. Soporta: literales, nombres de const, aritmetica con +,-,*,/,%
+    (enteros), +,-,*,/ (flotantes), parentesis y unarios +/-.
+
+  emitirValorFloat(gc, e, tipoConocido):
+    Evalua e y deja el resultado en %xmm0. Si e es entero, emite cvtsi2sdq
+    para convertirlo a flotante.
+
+  emitirConversionAType(gc, origen, destino):
+    Si origen==INT y destino==FLOAT64: emite cvtsi2sdq %rax, %xmm0
+    Si origen==FLOAT64 y destino==INT: emite cvttsd2siq %xmm0, %rax
+    Cualquier otro par: no-op.
+
+  METODOS MIEMBRO:
+
+  reservarSlots(n) -> int:
+    offset -= n*8 (cada slot mide 8 bytes). Devuelve el offset del primer slot.
+    Ejemplo: si offset estaba en -8 y n=3, el nuevo offset es -32 y devuelve -16
+    (el slot mas bajo; los otros son -24 y -32 ... en realidad devuelve -8 del
+    primer campo; la aritmetica garantiza que los n slots son contiguos).
+
+  tipoDe(Exp*) -> Semantic_types:
+    Determina el tipo de una expresion de forma pura (sin side-effects). Usa
+    un cascada de dynamic_cast para cada tipo de nodo. No usa el entorno del
+    TypeChecker (ya cerrado); usa las tablas planas de GenCode.
+
+  emitirDireccion(Exp*):
+    Deja en %rax la DIRECCION de la expresion lvalue:
+    - OperandNameExp: leaq nombre(%rip) o leaq offset(%rbp)
+    - IndexExp: evalua el arreglo (puntero base) y el indice; calcula
+      base + indice*8 con leaq (%rax, %rdi, 8)
+    - SelectorExp: evalua el struct (puntero) y suma el offset del campo
+    - UnaryExprExp(DEREF): evalua el puntero y lo deja en %rax
+
+  emitStrConcatHelperSiHaceFalta():
+    Emite la funcion str_concat en ensamblador:
+      1. strlen(s1) -> rbx
+      2. strlen(s2) + rbx + 1 = tamaño total
+      3. malloc(tamaño) -> rbx (buffer resultado)
+      4. strcpy(rbx, s1)
+      5. strcat(rbx, s2)
+      6. retorna rbx en %rax
+
+  VISITS DE GENERACION:
+
+  visit(Programa*):
+    1. Emite la seccion .data con los formatos de printf:
+       print_fmt_ld ("%ld \n"), print_fmt_f ("%f \n"), print_fmt_s ("%s \n"),
+       nl_fmt ("\n")
+    2. Visita ConstDecl/VarDecl globales (en modo entornoFuncion=false):
+       registra variables globales y acumula inicializadores.
+    3. Emite declaraciones de variables globales (.zero 8 por variable).
+    4. Emite __init_globals: una funcion de inicializacion que evalua todos
+       los inicializadores de variables/consts globales y los almacena. Para
+       structs/arrays globales sin inicializador, llama calloc aqui.
+    5. Visita FunctionDecl/MethodDecl: emite el codigo de cada funcion.
+    6. Si necesitaConcatString es true, emite str_concat.
+    7. Emite .section .note.GNU-stack (marca el stack como no ejecutable).
+
+  visit(FunctionDecl*):
+    1. Limpia las tablas de memoria y tipos por funcion.
+    2. Emite el prologo: pushq %rbp / movq %rsp, %rbp / subq $N, %rsp
+       N = (locales + 64 temporales) * 8 alineado a 16.
+    3. Copia los argumentos de los registros de la ABI al frame local
+       (movq %rdi, -8(%rbp), etc.).
+    4. Si es "main": emite `call __init_globals`.
+    5. Visita el cuerpo (Block).
+    6. Emite movq $0, %rax (limpia %rax para el caso de caida natural).
+    7. Emite la etiqueta .end_nombre: (target de "return").
+    8. Emite leave / ret.
+
+  visit(MethodDecl*):
+    Similar a FunctionDecl pero:
+    - El nombre de la funcion es "TipoBase_Metodo"
+    - El receptor va en %rdi (primer argumento de la ABI) y se copia al frame
+
+  visit(ConstSpec*) / visit(VarSpec*):
+    Para globales: solo llama registrarVariable y acumula en inicializacionesGlobales.
+    Para locales: evalua la expresion, aplica conversion si hace falta, y
+    almacena en el slot reservado.
+    Para VarSpec sin inicializador con struct/array: llama calloc y guarda
+    el puntero (el "zero value" real de Go para tipos compuestos).
+
+  visit(Block*):
+    Simplemente visita la StmtList. No abre ni cierra scope de memoria
+    (GenCode usa una tabla plana; el scope ya fue manejado por el TypeCheker).
+
+  visit(IncDecStmt*):
+    Evalua la expresion (deja valor en %rax), suma/resta 1, almacena de vuelta.
+
+  visit(Assigment*):
+    Para cada par (target, value):
+    - Si es operador compuesto: carga el valor actual del target a la pila,
+      evalua el valor nuevo, aplica la operacion, almacena.
+    - Si es ASSIGN simple: evalua el valor y almacena.
+    Llamada a emitirAlmacenar para escribir en la ubicacion correcta.
+
+  visit(ReturnStmt*):
+    Evalua la expresion de retorno (si la hay) dejandola en %rax o %xmm0.
+    Emite "jmp .end_nombreFuncion".
+
+  visit(BreakStmt*):
+    "jmp currentBreakLabel"
+
+  visit(ContinueStmt*):
+    "jmp currentContinueLabel"
+
+  visit(IfStmt*):
+    Genera una etiqueta unica con labelcont.
+    Evalua la condicion; compara con 0; je a else_N.
+    Emite cuerpo_if; jmp a endif_N.
+    Emite etiqueta else_N: ; cuerpo_else o if_anidado.
+    Emite etiqueta endif_N:.
+
+  visit(SwitchStmt*):
+    1. Evalua la expresion del switch; guarda en %r10.
+    2. Primer pase: para cada case, evalua cada expresion de la lista y emite
+       cmpq/je a la etiqueta del case. El default acumula por separado.
+    3. Si hay default, emite jmp default_N; si no, jmp endswitch_N.
+    4. Segundo pase: emite el codigo de cada clause con su etiqueta; al final
+       de cada clause emite jmp endswitch_N (break implicito de Go).
+    5. Emite etiqueta endswitch_N:.
+
+  visit(ForStmt*):
+    Con ForClause (for init; cond; post):
+      - Emite el init (asignacion1).
+      - Etiqueta for_N:.
+      - Evalua condicion; je a endfor_N.
+      - Emite el bloque.
+      - Etiqueta forpost_N: (target de continue).
+      - Emite el post (inc_dec_stmt o asignacion2).
+      - jmp for_N.
+      - Etiqueta endfor_N:.
+    Sin ForClause (while):
+      - Etiqueta for_N: (target de continue tambien).
+      - Evalua condicion (si hay); je a endfor_N.
+      - Emite el bloque.
+      - jmp for_N.
+      - Etiqueta endfor_N:.
+
+  visit(BasicLitExp*):
+    - INT_LIT / RUNE_LIT: movq $valor, %rax
+    - FLOAT_LIT: emite etiqueta en .data con ".double valor"; movsd etq(%rip), %xmm0
+    - STRING_LIT: recorta las comillas, busca/crea etiqueta en .data;
+      leaq etq(%rip), %rax
+
+  visit(OperandNameExp*):
+    - "true" -> movq $1, %rax
+    - "false" -> movq $0, %rax
+    - Variable local float: movsd offset(%rbp), %xmm0
+    - Variable local entero: movq offset(%rbp), %rax
+    - Variable global float: movsd nombre(%rip), %xmm0
+    - Variable global entero: movq nombre(%rip), %rax
+
+  visit(ParenExp*):
+    Delega en la expresion interior.
+
+  visit(UnaryExprExp*):
+    - ADDR_OP: si el operando es struct/array (ya es puntero), lo evalua tal cual;
+      para otros tipos llama emitirDireccion.
+    - DEREF_OP: evalua puntero en %rax; movq (%rax), %rax (o movsd para float)
+    - Float negativo: XOR con la mascara de bit de signo (0x8000000000000000)
+    - NEG_OP entero: negq %rax
+    - NOT_OP: cmpq $0 / sete %al / movzbq
+
+  visit(BinaryExp*):
+    - AND_OP / OR_OP: evalua ambos lados, andq/orq %rcx, %rax
+    - Si alguno es FLOAT64: constant folding si posible; sino emite con SSE
+      (addsd, subsd, mulsd, divsd para aritmetica; comisd + setCC para comparacion)
+    - Si ambos son STRING y op==PLUS: concatenacion con str_concat
+    - Enteros: constant folding si posible; sino push izq, eval der, pop en %rax:
+      addq, subq, imulq, cqto+idivq, cqto+idivq+movq %rdx,%rax (para MOD)
+      Para comparacion: cmpq + setCC + movzbq
+      Para POW_OP: loop imulq con contador en %rcx
+
+  visit(CompositeLitExp*):
+    1. calloc(slots, 8) -> %rax (buffer inicializado a cero)
+    2. pushq %rax (conservar puntero)
+    3. Para cada elemento: evalua el valor; movq (%rsp), %r10 (peek al puntero);
+       almacena en offset correcto del struct/array (idxCampo*8 o i*8)
+    4. popq %rax (resultado = puntero al struct/array)
+
+  visit(SelectorExp*):
+    Evalua la expresion base (deja puntero al struct en %rax).
+    Calcula el offset del campo (fieldIndex * 8).
+    movq/movsd offset(%rax), %rax/%xmm0
+
+  visit(IndexExp*):
+    Para STRING: evalua cadena y indice; addq %rdi, %rax; movzbq (%rax), %rax
+    Para ARRAY: llama emitirDireccion(index_exp); movq (%rax), %rax
+
+  visit(SliceExp*):
+    Extension simplificada: evalua la expresion base y la devuelve tal cual
+    (no implementa un slice real con puntero + longitud).
+
+  visit(TypeAssertionExp*):
+    Evalua la expresion y devuelve el tipo del tipo asercionado. (No verifica
+    en tiempo de ejecucion; simplificacion de alcance.)
+
+  visit(ArgumentsExp*):
+    Tres casos:
+    1. Conversion T(x): eval argumento + cvtsi2sdq/cvttsd2siq si hace falta
+    2. print/println: para cada argumento, lo evalua y llama emitirPrintDeTipo.
+       println agrega una llamada extra a printf con nl_fmt.
+    3. Funcion normal: emitirArgumentos (coloca args en registros ABI) + call nombre
+    4. Metodo p.M(args): evalua el receptor (puntero al struct) en %rax;
+       lo empuja; emitirArgumentos con offsetInt=1 (deja %rdi libre para receptor);
+       popq %rdi; call TipoBase_M
+
+================================================================================
+5. PATRONES DE DISENO USADOS
+================================================================================
+
+VISITOR (patron principal):
+  Separacion entre la estructura de datos (AST) y los algoritmos que la
+  procesan. El AST no sabe nada sobre semantica ni codigo; eso lo implementan
+  TypeChekerVisitor y GenCode. Esto permite agregar nuevas fases (ej. un
+  optimizador, un generador de bytecode) sin tocar las clases del AST.
+  Double dispatch: nodo->accept(visitor) llama visitor->visit(nodo),
+  resolviendo ambos tipos en tiempo de ejecucion.
+
+RECURSIVE DESCENT PARSER:
+  El parser implementa la gramatica LL(1) con un token de lookahead.
+  Cada regla gramatical es un metodo. La recursion del descenso refleja
+  directamente la estructura gramatical del lenguaje.
+
+SCOPED SYMBOL TABLE (Environment<T>):
+  Pila de tablas hash para manejar el alcance lexicico de variables. Cada
+  add_level()/remove_level() corresponde a entrar/salir de un bloque.
+
+STATE MACHINE (Scanner):
+  readNumberToken() y readStringToken() implementan automatas de estados finitos
+  para el reconocimiento de tokens complejos (numeros multi-base, strings con
+  escapes).
+
+================================================================================
+6. CONVENCIONES DE GENERACION DE CODIGO (ABI)
+================================================================================
+
+ABI: System V AMD64 (Linux/macOS x86-64)
+
+Registros de argumentos:
+  Enteros/punteros: %rdi, %rsi, %rdx, %rcx, %r8, %r9 (hasta 6)
+  Flotantes (float64): %xmm0 .. %xmm7 (hasta 8)
+  Los contadores de enteros y flotantes son independientes.
+
+Valor de retorno:
+  Entero/puntero/bool/string: %rax
+  float64: %xmm0
+
+Stack frame de cada funcion:
+  - Prologo: pushq %rbp / movq %rsp, %rbp / subq $N, %rsp
+  - N = (locales + 64 temporales) * 8, alineado a 16 bytes
+  - Las variables locales se ubican en offsets negativos desde %rbp:
+    primera variable en -8(%rbp), segunda en -16(%rbp), etc.
+  - Cada slot tiene 8 bytes (int, bool, pointer, string, struct*, array*)
+  - Epilogo: leave (= movq %rbp, %rsp; popq %rbp) / ret
+
+Variables globales:
+  Declaradas en .data con ".zero 8" (inicializadas a cero).
+  Acceso con RIP-relativo: nombre(%rip)
+
+Structs y Arrays:
+  Siempre representados como un PUNTERO a un buffer allocado con calloc().
+  Cada campo/elemento ocupa 8 bytes en el buffer.
+  Un campo float64 se almacena/carga con movsd; los demas con movq.
+  Esto simplifica enormemente el paso de parametros y las asignaciones,
+  pero NO tiene la semantica de copia por valor de Go para struct/array.
+
+Strings:
+  Son punteros a buffers de caracteres (como en C). "+" entre strings
+  llama a str_concat que hace malloc + strcpy + strcat de la libc.
+
+Booleanos:
+  Se representan como enteros: 1 = true, 0 = false.
+  Las operaciones logicas usan andq/orq; NOT usa sete.
+
+Inicializacion de paquete (go init equivalente):
+  __init_globals es una funcion interna que evalua los inicializadores de
+  todas las variables/consts globales. Es llamada al inicio de main().
+
+================================================================================
+7. LIMITACIONES Y SIMPLIFICACIONES CONOCIDAS
+================================================================================
+
+1. STRUCT/ARRAY: Siempre son punteros al heap (calloc). No hay copia por valor.
+   "m2 = m" copia el puntero, no los datos. Es una simplificacion deliberada.
+
+2. CLOSURES / FUNCTION LITERALS: No generan codigo real. Se les asigna movq $0.
+   No pueden invocarse dinamicamente.
+
+3. SLICE: Solo devuelve el puntero base sin informacion de longitud/capacidad.
+   No implementa slices reales de Go.
+
+4. MULTIPLES VALORES DE RETORNO: Solo se retorna el primer valor de la lista.
+
+5. GARBAGE COLLECTION: No existe. Todo el heap allocado con calloc/malloc queda
+   sin liberar (no es un problema para programas cortos).
+
+6. GOROUTINES / CHANNELS (chan, go, select): Se reconocen como tokens pero no
+   tienen implementacion en el TypeChecker ni en GenCode.
+
+7. INTERFACES: Solo el token INTERFACE es reconocido; no hay implementacion.
+
+8. DEFER: Solo el token DEFER es reconocido; no hay implementacion.
+
+9. TYPE ASSERTION: Solo verifica tipos en el TypeChecker; no hay verificacion
+   en tiempo de ejecucion.
+
+10. IMPORT: Solo el token IMPORT es reconocido; no hay sistema de modulos.
+    Los builtins print/println se implementan directamente como casos especiales
+    en el TypeChecker y el GenCode usando printf de la libc.
+
+11. MAS DE 6 ARGUMENTOS: Los argumentos se pasan en registros de la ABI; si una
+    funcion tiene mas de 6 argumentos enteros (o mas de 8 flotantes), el codigo
+    generado sera incorrecto (no se hace spill a la pila).
+
+12. STRINGS INTERPRETED: El scanner almacena el texto con las comillas originales.
+    El GenCode las recorta manualmente con substr. Las secuencias de escape dentro
+    del string se pasan literalmente al ensamblador (funciona porque .string de
+    GAS interpreta \n, \t, etc.)
+
+================================================================================
+FIN DE LA DOCUMENTACION
+================================================================================
