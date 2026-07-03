@@ -1,7 +1,8 @@
 ================================================================================
 DOCUMENTACION COMPLETA DEL PROYECTO: COMPILADOR DE GO (subset) en C++
 ================================================================================
-Fecha de generacion: 2026-07-02
+Fecha de generacion: 2026-07-02  (revision 2026-07-03: profundizacion tecnica de
+  ast.h, visitor, TypeChecker y GenCode, con la logica de instrucciones x86-64)
 Repositorio: ProyectoCompiladoresC-
 Lenguaje fuente: subset de Go (funciones, structs, arrays, punteros, control flow)
 Lenguaje destino: ensamblador x86-64 (sintaxis AT&T, Linux/SysV ABI)
@@ -232,6 +233,64 @@ Define todas las clases del Arbol de Sintaxis Abstracta (AST). Es el archivo
 mas extenso de los headers (~543 lineas). Cada nodo del AST tiene un metodo
 accept(Visitor*) que implementa el doble dispatch del patron Visitor.
 
+................................................................................
+IDEA CENTRAL: por que el AST es el corazon del compilador
+................................................................................
+El AST es la unica estructura de datos que sobrevive entre fases. El parser lo
+CONSTRUYE, el TypeChecker lo RECORRE para validar tipos, y GenCode lo RECORRE de
+nuevo para emitir ensamblador. Todo lo que las fases posteriores necesitan saber
+del programa debe estar capturado aqui. Por eso su diseno condiciona todo el
+resto del compilador.
+
+Tres decisiones de diseno vale la pena entender antes de leer las clases:
+
+  (a) TODO nodo hereda (directa o indirectamente) de una de tres raices
+      abstractas segun DONDE puede aparecer en el programa:
+        - TopLevelDecl : cosas que van a nivel de paquete (func, type, var...)
+        - Stmt         : sentencias que van dentro de un cuerpo { ... }
+        - Exp          : expresiones que producen un valor
+      Ademas Type es una cuarta raiz aparte (describe tipos, no valores).
+      Esta separacion NO es decorativa: el parser decide que metodo llamar
+      segun el contexto, y el tipo estatico C++ de cada raiz garantiza que,
+      por ejemplo, no se pueda poner un Stmt donde va una Exp.
+
+  (b) accept() tiene DOS firmas distintas a proposito:
+        - En Stmt, Exp y Type:  Semantic_types accept(Visitor*)
+        - En Programa, FunctionDecl, ConstSpec, etc.:  void accept(Visitor*)
+      La diferencia es intencional. Una expresion (Exp) SIEMPRE tiene un tipo
+      (int, bool, *Point...), asi que su accept devuelve ese Semantic_types y
+      el visitante lo usa hacia arriba (p.ej. BinaryExp necesita el tipo de sus
+      dos hijos). Una declaracion de nivel superior no "vale" un tipo, asi que
+      su accept devuelve void. Type::accept devuelve Semantic_types porque su
+      trabajo es, justamente, RESOLVER el tipo que describe (ver TypeChecker).
+
+  (c) El doble dispatch (double dispatch). La llamada
+          nodo->accept(visitor);
+      resuelve DOS tipos dinamicos en cadena:
+        1er dispatch: 'nodo' es un Exp* pero apunta a un BinaryExp; el metodo
+                      virtual accept selecciona BinaryExp::accept.
+        2do dispatch: dentro de BinaryExp::accept se llama
+                      visitor->visit(this), donde 'this' ya es BinaryExp*, de
+                      modo que se elige el visit(BinaryExp*) correcto por
+                      sobrecarga.
+      Resultado: se ejecuta el codigo especifico para (BinaryExp, GenCode) o
+      (BinaryExp, TypeChecker) sin un solo switch ni dynamic_cast en el camino
+      feliz. El AST no conoce a sus visitantes; los visitantes no modifican el
+      AST. Agregar una fase nueva = escribir un Visitor nuevo; no se toca ast.h.
+
+................................................................................
+ENUMERACIONES DE OPERADORES: por que existen aparte de los tokens
+................................................................................
+El scanner produce Token::PLUS, Token::MUL, etc. (tokens lexicos). El AST
+NO los reutiliza: define sus propios enums BinaryOp/UnaryOp/AssignOp. La razon
+es desacoplar la sintaxis de la semantica: un mismo simbolo puede significar
+cosas distintas ('*' es MUL_OP como binario, pero DEREF_OP como unario; '&' es
+bit-AND o ADDR_OP segun posicion; '-' es MINUS_OP o NEG_OP). Las funciones
+libres tokenToBinaryOp()/tokenToUnaryOp() hacen esa traduccion en el parser,
+una sola vez, y de ahi en adelante las fases semantica y de codigo razonan
+sobre los enums limpios del AST (ver el switch de visit(BinaryExp*) en ambos
+visitantes: ramifican sobre BinaryOp, no sobre Token::Type).
+
 ENUMERACIONES:
   BinaryOp  — operadores binarios: PLUS_OP, MINUS_OP, MUL_OP, DIV_OP, MOD_OP,
                POW_OP, EQ_OP, NEQ_OP, LT_OP, GT_OP, LTE_OP, GTE_OP, AND_OP, OR_OP
@@ -368,6 +427,40 @@ JERARQUIA DE CLASES:
     Exp::unopToString(UnaryOp)   -> string
       Convierten operadores a strings legibles (para mensajes de error).
 
+................................................................................
+NOTAS SOBRE NODOS CLAVE (por que estan modelados asi)
+................................................................................
+  - IfStmt guarda por separado 'cuerpo_else' (Block* para "else { ... }") y
+    'if_anidado' (IfStmt* para "else if ..."). Esto convierte una cadena
+    "if..else if..else" en una LISTA ENLAZADA de IfStmt: cada eslabon apunta al
+    siguiente con if_anidado. GenCode la recorre recursivamente generando
+    etiquetas else_N/endif_N anidadas (ver visit(IfStmt*)).
+
+  - Assigment separa lado izquierdo y derecho en DOS ExpList
+    (expresion_list_id y expresion_list_values) mas un AssignOp. Modelar el
+    izquierdo como lista de Exp (no de strings) es lo que permite asignar a
+    lvalues complejos: a[i] = x, p.campo = y, *ptr = z, no solo "variable = x".
+
+  - IndexExp, SelectorExp y UnaryExprExp(DEREF) son los tres "lvalues" del
+    lenguaje: expresiones que denotan una UBICACION en memoria, no solo un
+    valor. GenCode las trata especial en emitirDireccion() (seccion 4.9).
+
+  - ArgumentsExp NO es solo "llamada a funcion": su campo 'funcion' es una Exp
+    arbitraria. Eso deja que la MISMA clase represente f(x), p.Move(dx,dy)
+    (funcion = SelectorExp), int(x) (conversion de tipo) y print(...). Quien
+    distingue esos casos es el visitante, inspeccionando de que subclase es
+    'funcion' con dynamic_cast (ver visit(ArgumentsExp*) en ambas fases).
+
+  - ExpList::accept devuelve el tipo de la ULTIMA expresion visitada, y
+    IdentifierList::accept no hace nada: son listas auxiliares sin un "tipo"
+    unico propio (ver visitor.cpp). El tipo de cada id lo fija el nodo que la
+    contiene (VarSpec, ParameterDecl, FieldDecl).
+
+  - CompositeLitExp usa KeyedElement (key + value) para representar tanto
+    literales posicionales Point{1,2} (key == nullptr) como con clave
+    Point{X:1, Y:2} (key == OperandNameExp). El chequeo de "no mezclar ambos"
+    lo hace el TypeChecker, no la gramatica.
+
 --------------------------------------------------------------------------------
 3.4 visitor.h
 --------------------------------------------------------------------------------
@@ -378,6 +471,35 @@ CLASE: Visitor (abstracta)
   Declara un metodo visit() virtual puro para CADA tipo de nodo del AST.
   Todos los metodos devuelven Semantic_types (el tipo semantico resultante de
   visitar ese nodo; para sentencias y declaraciones siempre es VOID).
+
+................................................................................
+POR QUE ESTA INTERFAZ ES EL "CONTRATO" DE TODO EL COMPILADOR
+................................................................................
+Visitor es una clase 100% abstracta (todos sus visit() son "= 0"): no tiene
+estado ni implementacion, solo declara la lista de operaciones que CUALQUIER
+fase que recorra el AST debe saber manejar. Es el punto de encuentro entre el
+AST y las fases:
+
+  - ast.h/ast.cpp dependen de Visitor para poder escribir accept().
+  - TypeChekerVisitor y GenCode HEREDAN de Visitor y dan cuerpo a los 38 visit.
+
+Consecuencia practica: si se agrega un nodo nuevo al AST (p.ej. WhileStmt),
+se agrega un "virtual Semantic_types visit(WhileStmt*) = 0;" aqui, y el
+compilador C++ OBLIGA a implementarlo en TypeChecker y en GenCode (si no, no
+compila por metodo virtual puro sin override). Ese "error de compilacion util"
+es la mayor ventaja del patron: es imposible olvidar una fase para un nodo.
+
+Sobrecarga en vez de nombres distintos: los 38 metodos se llaman todos "visit"
+y se diferencian solo por el tipo del parametro (visit(BinaryExp*),
+visit(IfStmt*)...). Esto es lo que habilita el 2do dispatch: dentro de
+NodoX::accept, la llamada visitor->visit(this) elige por sobrecarga el visit
+correcto porque 'this' ya tiene tipo estatico NodoX*.
+
+Tipo de retorno uniforme (Semantic_types): aunque para una sentencia el "tipo"
+no significa nada (siempre devuelven VOID), unificar la firma permite que
+accept() tenga una sola forma y que el codigo cliente componga visitas sin
+casos especiales. Las expresiones si aprovechan el retorno (es su tipo real);
+las sentencias lo ignoran.
 
   Los 38 metodos visit() cubren:
     Nodos de nivel superior: Programa, FunctionDecl, MethodDecl, ConstDecl,
@@ -570,6 +692,36 @@ CLASE: Parser
 3.8 TypeCheker.h
 --------------------------------------------------------------------------------
 Define el visitor de analisis semantico.
+
+................................................................................
+QUE HACE EL TYPECHECKER Y POR QUE ES IMPRESCINDIBLE
+................................................................................
+El TypeChecker es la fase que convierte un AST "sintacticamente valido" en un
+AST "semanticamente valido". El parser garantiza que "x + " esta mal escrito,
+pero NO que "x" exista, ni que sumar un string con un bool tenga sentido. Eso
+lo hace esta fase. Cumple cuatro roles simultaneos:
+
+  1. RESOLVER TIPOS. Traduce los nodos Type del AST (BasicType "int",
+     PointerType, StructType...) a objetos Semantic_types concretos, y da un
+     tipo a cada expresion (inferencia ascendente: el tipo de "a+b" se calcula
+     a partir de los tipos de a y b).
+
+  2. VALIDAR REGLAS. Variable declarada antes de usarse, condicion de if/for
+     debe ser bool, break/continue solo dentro de bucles, aridad y tipos de
+     argumentos en llamadas, campos de struct existentes, indices int, etc.
+     Ante cualquier violacion imprime "Error semantico: ..." y hace exit(1)
+     (el compilador se detiene; no hay recuperacion de errores).
+
+  3. PREPARAR TERRENO PARA GENCODE. GenCode NO vuelve a razonar tipos desde
+     cero: reutiliza las tablas que el TypeChecker llena (tabla_funciones,
+     tabla_tipos, valores_const) y, sobre todo, fun_var_contador, que le dice
+     cuantos slots reservar en el stack frame de cada funcion. Por eso ambos
+     comparten el mismo objeto: GenCode contiene un TypeChekerVisitor 'tipos'.
+
+  4. FIJAR SEMANTICA DEL SUBSET. Muchas decisiones "de que lenguaje es esto"
+     viven aqui: Go NO castea implicitamente int<->float64 (pero este subset
+     deja una promocion opcional int->float64 via canPromoteTo), '+' entre dos
+     strings es concatenacion, print/println son builtins, etc.
 
 STRUCT: FunctionSignature
   - param_types: vector<Semantic_types>  — tipos de los parametros en orden
@@ -781,9 +933,46 @@ Funciones libres:
 --------------------------------------------------------------------------------
 4.5 visitor.cpp
 --------------------------------------------------------------------------------
-No contiene implementaciones propias; solo la definicion del destructor virtual
-de la clase Visitor (necesario para que las clases derivadas no tengan undefined
-behavior al destruirse a traves de un puntero base).
+Contiene la implementacion de TODOS los metodos accept() de los nodos del AST
+(no las implementaciones de visit(), que viven en TypeCheker.cpp y GenCode.cpp).
+Es la "mitad" del patron Visitor que pertenece al lado del AST.
+
+CADA accept() es una linea de la forma:
+    Semantic_types BinaryExp::accept(Visitor* v) { return v->visit(this); }
+    void           FunctionDecl::accept(Visitor* v) { v->visit(this); }
+
+Aunque parezcan triviales, estas lineas SON el mecanismo de doble dispatch:
+
+  Paso 1 (dispatch por accept, virtual):
+    Cuando el cliente tiene un Exp* que en realidad apunta a un BinaryExp y
+    llama nodo->accept(v), la tabla virtual selecciona BinaryExp::accept.
+  Paso 2 (dispatch por visit, sobrecarga):
+    Dentro de BinaryExp::accept, 'this' tiene tipo estatico BinaryExp*, asi que
+    v->visit(this) resuelve por sobrecarga a visit(BinaryExp*) del visitante
+    concreto (TypeChecker o GenCode).
+
+El truco es que el compilador C++ NO sabe en el paso 1 que subclase es, pero
+SI lo sabe en el paso 2, porque cada accept() esta compilado dentro de su
+propia clase. Trasladar la resolucion "de tipo desconocido" a "dentro del
+metodo de la clase correcta" es exactamente lo que resuelve el problema del
+doble despacho que C++ no da directo (solo despacha por el objeto receptor,
+no por el argumento).
+
+DOS EXCEPCIONES documentadas en el propio archivo:
+  - IdentifierList::accept(v) { (void)visitor; }  — no hace nada. Una lista de
+    identificadores no tiene un "tipo" que calcular; los nodos que la contienen
+    (VarSpec, ParameterDecl, FieldDecl) son quienes dan tipo a cada nombre.
+  - ExpList::accept recorre sus expresiones y devuelve el tipo de la ULTIMA.
+    Se usa, por ejemplo, en ReturnStmt con un unico valor. No pasa por
+    Visitor::visit porque una "lista de expresiones" no es un concepto con un
+    tipo unico bien definido.
+
+Estas dos clases NO aparecen en la interfaz Visitor (no hay visit(ExpList*) ni
+visit(IdentifierList*)); son estructura auxiliar, no nodos "visitables".
+
+El destructor virtual de Visitor (declarado en el header como "= default")
+garantiza que borrar un GenCode o un TypeChecker a traves de un Visitor*
+llame al destructor correcto (evita undefined behavior).
 
 --------------------------------------------------------------------------------
 4.6 Semantic_types.cpp
@@ -833,6 +1022,94 @@ DETALLES IMPORTANTES DE IMPLEMENTACION:
 4.8 TypeCheker.cpp
 --------------------------------------------------------------------------------
 [Ver seccion 3.8 — implementa TypeChekerVisitor]
+
+................................................................................
+POR QUE CINCO PASADAS SOBRE EL PROGRAMA (y no una sola)
+................................................................................
+Un lenguaje con declaraciones "hacia adelante" (usar algo declarado mas abajo)
+no se puede chequear en un unico recorrido lineal. En Go, main() puede llamar a
+una funcion definida despues, un struct puede tener un campo *OtroStruct
+definido mas abajo, y un metodo puede referirse a un tipo aun no visto. Por eso
+visit(Programa*) hace CINCO pasadas, cada una habilitando a la siguiente:
+
+  Pasada 1 — RESERVAR NOMBRES DE TIPO.
+     Recorre solo los TypeDecl y registra cada nombre en tabla_tipos con un
+     Semantic_types VACIO (placeholder). Todavia no resuelve los campos. Esto
+     permite referencias cruzadas: un struct que se apunta a si mismo
+     (type Nodo struct { sig *Nodo }) o dos structs mutuamente recursivos.
+     Sin este placeholder, resolver el primero fallaria al no existir el
+     segundo aun.
+
+  Pasada 2 — RESOLVER TIPOS.
+     Ahora que todos los nombres existen, resuelve cada TypeSpec de verdad
+     (spec->tipo->accept(this)), calculando los campos de cada struct, el
+     elemento de cada array, etc. Si el tipo resuelto es un struct, le pega su
+     nombre con setStructName (los structs de Go son tipos con nombre; el
+     nombre es su identidad para 'match').
+
+  Pasada 3 — REGISTRAR FIRMAS de funciones y metodos en tabla_funciones.
+     Guarda param_types y return_types de cada func/method ANTES de mirar
+     ningun cuerpo. Asi, cuando en la pasada 5 se chequee una llamada, la firma
+     del destino ya existe sin importar el orden textual. La clave de un metodo
+     es "NombreTipoBase_nombreMetodo" (p.ej. "Point_Move"): asi metodos y
+     funciones comparten una sola tabla.
+
+  Pasada 4 — DECLARACIONES GLOBALES (const/var de nivel superior).
+     Abre el scope global (entorno.add_level()) y procesa ConstDecl/VarDecl.
+     Deben ir antes de los cuerpos porque las funciones pueden leer globales.
+
+  Pasada 5 — CHEQUEAR CUERPOS de funciones y metodos.
+     Recien aqui se entra a cada Block. Cada func/method abre su propio nivel
+     de entorno, registra sus parametros, visita su cuerpo y cierra el nivel.
+     Es donde se disparan casi todos los "Error semantico".
+
+................................................................................
+COMO SE MANEJA EL ALCANCE (scoping) — Environment<Semantic_types>
+................................................................................
+El campo 'entorno' es una pila de tablas hash (ver Enviroment.h). La disciplina
+es siempre la misma: add_level() al entrar a un scope, remove_level() al salir.
+Abren nivel: la funcion/metodo (parametros), cada Block, el ForStmt con
+clausula (para que "i := 0" del init viva solo en el bucle) y el SwitchStmt.
+lookup() busca del rib mas interno al mas externo, implementando el
+"shadowing": una variable local tapa a una global del mismo nombre.
+
+Contraste clave con GenCode: el TypeChecker SI necesita scopes anidados (para
+saber que variable es visible donde); GenCode NO, porque para cuando genera
+codigo ya se valido todo y trabaja con un mapa plano nombre->offset. Por eso
+GenCode no usa Environment.
+
+................................................................................
+INFERENCIA DE TIPOS DE EXPRESIONES (reglas concretas)
+................................................................................
+Cada visit de expresion devuelve el Semantic_types de esa expresion; el padre
+lo usa. Reglas implementadas (ver visit(BinaryExp*)/visit(UnaryExprExp*)):
+
+  Aritmetica (+ - * / % ^):  ambos operandos deben ser numericos (int/float64);
+      el resultado es el tipo comun. '+' es el unico sobrecargado: si ambos
+      lados son STRING, el resultado es STRING (concatenacion).
+  Comparacion (== != < > <= >=):  operandos de tipos compatibles (o
+      promovibles); el resultado SIEMPRE es BOOL.
+  Logicos (&& ||):  ambos operandos BOOL; resultado BOOL.
+  Unarios:  +/- exigen numerico; ! exige bool; &x devuelve POINTER(tipo de x);
+      *p exige que p sea POINTER y devuelve el tipo apuntado.
+
+La ausencia de casteo implicito de Go se modela con match(): dos tipos deben
+coincidir exactamente. La unica flexibilidad es canPromoteTo (int->float64),
+que el subset habilita opcionalmente y que GenCode acompana con la conversion
+real (cvtsi2sd). Nada de esto es automatico en el hardware: el TypeChecker solo
+AUTORIZA la promocion; la instruccion la emite GenCode.
+
+................................................................................
+EVALUACION DE CONSTANTES (evalConstIntExpr / tryEvalConstInt)
+................................................................................
+Go exige que el tamano de un arreglo sea una constante conocida en compilacion:
+"[10]int" y "[N]int" (con N const) son validos; "[x]int" (x variable) no. El
+helper tryEvalConstInt evalua en compilacion literales enteros, nombres de
+const ya resueltas (leidos de valores_const) y combinaciones con + - * / %
+y unarios +/- entre constantes. Se usa en dos lugares: para el tamano de
+ArrayType, y para ir poblando valores_const a medida que se declaran consts
+enteras (asi una const puede definirse en terminos de otra anterior). Si la
+expresion no es constante, evalConstIntExpr aborta con exit(1).
 
 DESCRIPCION DETALLADA DE CADA visit():
 
@@ -950,6 +1227,247 @@ DESCRIPCION DETALLADA DE CADA visit():
 4.9 GenCode.cpp
 --------------------------------------------------------------------------------
 [Ver seccion 3.9 — implementa GenCode]
+
+################################################################################
+##  MODELO MENTAL DE LA GENERACION DE CODIGO x86-64                            ##
+################################################################################
+Esta es la parte mas importante del proyecto: traducir el AST ya validado a
+instrucciones reales de un procesador x86-64. Antes de ver visit por visit,
+hay que entender el MODELO que sigue todo GenCode, porque es sorprendentemente
+simple y regular.
+
+--------------------------------------------------------------------------------
+A. LA REGLA DE ORO: toda expresion "deja su resultado en %rax" (o %xmm0)
+--------------------------------------------------------------------------------
+GenCode trata al procesador como una "maquina de acumulador": el resultado de
+evaluar CUALQUIER expresion queda, por convencion, en un lugar fijo:
+
+    - valores enteros / bool / punteros / strings (puntero al buffer):  %rax
+    - valores float64:                                                   %xmm0
+
+Esta convencion es la que hace que el codigo componga. Cuando visit(BinaryExp*)
+necesita el valor de su hijo izquierdo, simplemente hace
+"binary_exp->left->accept(this)" y despues USA %rax, sin importar si el hijo
+era un literal, una variable, otra suma o una llamada a funcion: todos
+prometieron dejar su resultado en %rax. Cada visit de expresion cumple ese
+contrato y devuelve, ademas, el Semantic_types del valor que dejo (para que el
+padre sepa si mirar %rax o %xmm0, y si el tipo es float/string/etc.).
+
+--------------------------------------------------------------------------------
+B. EL PROBLEMA DE LOS DOS OPERANDOS Y EL PATRON push/pop
+--------------------------------------------------------------------------------
+Si TODA expresion deja su resultado en %rax, evaluar el hijo derecho de una
+suma PISARIA el resultado del izquierdo. La solucion clasica (y la que usa este
+compilador) es la pila:
+
+    binary_exp->left->accept(this);      // %rax = valor izquierdo
+    out << "  pushq %rax\n";             // guardar izq en la pila
+    binary_exp->right->accept(this);     // %rax = valor derecho (pisa rax, ok)
+    out << "  movq %rax, %rcx\n";        // der -> %rcx
+    out << "  popq %rax\n";              // recuperar izq -> %rax
+    // ahora: %rax = izquierdo, %rcx = derecho, listos para operar
+
+Este patron "evalua izq, apila, evalua der, mueve der a rcx, desapila izq"
+aparece una y otra vez (BinaryExp, Assigment compuesto, IndexExp de string,
+concatenacion...). La pila es lo que permite anidar expresiones a profundidad
+arbitraria: (a+b)*(c+d) apila resultados intermedios sin limite fijo de
+registros. %rcx es el "segundo operando" por convencion interna de GenCode
+(no es una regla de la ABI, es una eleccion del compilador).
+
+--------------------------------------------------------------------------------
+C. INSTRUCCIONES x86-64 QUE EMITE EL COMPILADOR (glosario razonado, AT&T)
+--------------------------------------------------------------------------------
+Sintaxis AT&T: "op fuente, destino" (¡destino a la DERECHA!), registros con %,
+inmediatos con $, y sufijo de tamano en la instruccion: 'q' = quad = 64 bits.
+
+  movq  F, D    Copia 64 bits de F a D. Es el "asignar" universal.
+                Ej: movq $5, %rax (rax=5); movq -8(%rbp), %rax (carga local).
+  leaq  F, D    "Load Effective Address": pone la DIRECCION calculada de F en D,
+                sin leer memoria. Clave para lvalues y para direcciones RIP-rel.
+                Ej: leaq -8(%rbp), %rax  -> rax = direccion de la local, no su
+                valor. Ej: leaq (%rax,%rdi,8), %rax -> rax = rax + rdi*8.
+  pushq F       Empuja F a la pila (rsp -= 8; [rsp] = F).
+  popq  D       Saca de la pila a D (D = [rsp]; rsp += 8).
+  addq/subq/imulq  F, D   D = D +/- /* F  (aritmetica entera de 64 bits con
+                signo). imulq es multiplicacion con signo.
+  cqto          "Convert Quad to Octo": extiende el signo de %rax a %rdx:%rax
+                (rellena %rdx con el bit de signo de rax). OBLIGATORIO antes de
+                idivq, porque la division de 64 bits usa el par %rdx:%rax de
+                128 bits como dividendo.
+  idivq F       Divide %rdx:%rax entre F. Deja el COCIENTE en %rax y el RESTO en
+                %rdx. Por eso "/" usa %rax y "%" (modulo) copia %rdx a %rax.
+  negq  D       D = -D (complemento a dos, negacion aritmetica entera).
+  cmpq  F, D    Compara D con F (calcula D - F) y setea flags, SIN guardar el
+                resultado. Se combina con je/jne/jl/... o con setCC.
+  je/jne/jl/... ETQ   Salto condicional segun los flags que dejo el ultimo
+                cmpq: je=igual, jne=distinto, jl=menor(con signo), jle, jg, jge.
+  jmp   ETQ     Salto incondicional (control de flujo: else, fin de bucle...).
+  setCC %al     Segun los flags, pone 1 o 0 en el byte bajo %al (sete=igual,
+                setne, setl/setg/setle/setge con signo). Es como se materializa
+                un bool a partir de una comparacion.
+  movzbq %al,%rax  "Move Zero-extend Byte to Quad": toma el byte de %al (0 o 1)
+                y lo extiende a 64 bits en %rax poniendo el resto en cero. Se usa
+                justo despues de setCC para tener un bool limpio de 0/1 en rax.
+  movzbq (%rax),%rax  Variante que lee UN byte de memoria y lo extiende: se usa
+                para indexar un string (leer un caracter/byte).
+
+  Punto flotante (SSE, registros %xmm):
+  movsd  F, D   Copia un double (64 bits) entre memoria y %xmm, o entre xmm.
+  addsd/subsd/mulsd/divsd  F, D   Aritmetica de doubles: D = D op F.
+  comisd F, D   Compara dos doubles y setea flags (como cmpq pero SSE); se
+                combina con seta/setb/setae/setbe/sete (¡condiciones SIN signo!
+                por como comisd deja los flags).
+  cvtsi2sdq %rax,%xmm0   Convierte un entero de 64 bits a double (int -> float64).
+  cvttsd2siq %xmm0,%rax  Convierte un double a entero truncando (float64 -> int).
+  xorpd  MASK,%xmm0      XOR bit a bit sobre el double; con la mascara
+                0x8000000000000000 invierte SOLO el bit de signo => negacion de
+                float (asi se implementa "-x" para float64, ver visit(UnaryExprExp*)).
+
+--------------------------------------------------------------------------------
+D. EL STACK FRAME: donde viven las variables locales
+--------------------------------------------------------------------------------
+Cada funcion abre un "marco" (frame) de pila en su prologo y lo cierra en el
+epilogo. Layout tipico (la pila crece hacia direcciones MENORES):
+
+        direcciones altas
+        +------------------------+
+        |  ... del llamador ...  |
+        +------------------------+
+        | direccion de retorno   |  <- la puso "call"
+        +------------------------+
+        | %rbp del llamador      |  <- lo empuja "pushq %rbp"
+   rbp> +------------------------+  <- movq %rsp,%rbp fija rbp aqui
+        | local 1     -8(%rbp)   |
+        | local 2    -16(%rbp)   |
+        | local 3    -24(%rbp)   |
+        |   ...  (locales)       |
+        |   ...  (temporales)    |  <- margen de 64 slots (ver abajo)
+   rsp> +------------------------+  <- subq $N,%rsp reserva todo de una vez
+        direcciones bajas
+
+  Prologo (identico en toda funcion):
+        pushq %rbp            ; guardar el frame del llamador
+        movq  %rsp, %rbp      ; rbp = base del frame nuevo (referencia fija)
+        subq  $N, %rsp        ; reservar N bytes para locales+temporales
+
+  N = tamanoFrameAlineado(locales + 64) = (locales+64)*8 redondeado a 16.
+  El "+64" es un margen de slots temporales para sub-expresiones (p.ej.
+  literales compuestos evaluados en medio de una expresion), en vez de contar
+  temporales con exactitud: mas simple, a costa de reservar de mas.
+
+  Cada variable local recibe un offset NEGATIVO fijo respecto a %rbp
+  (la primera en -8, la segunda en -16, ...). El mapa 'memoria'
+  (nombre->offset) traduce cada uso de la variable a "offset(%rbp)". Usar %rbp
+  (y no %rsp) como ancla permite que los offsets sean constantes aunque %rsp
+  se mueva con push/pop durante la evaluacion de expresiones.
+
+  Epilogo:
+        movq $0, %rax         ; limpia rax si se cae por el final (ver nota*)
+     .end_<funcion>:          ; a esta etiqueta salta cada "return"
+        leave                 ; equivale a: movq %rbp,%rsp ; popq %rbp
+        ret                   ; salta a la direccion de retorno
+  (*) Si el control "cae" al final sin un return explicito (funcion void, main),
+      %rax podria tener basura de la ultima llamada (p.ej. lo que devolvio
+      printf); por eso se limpia con movq $0,%rax. Un "return expr;" salta
+      directo a .end_<funcion> sin pasar por ese movq, asi que no pisa el valor.
+
+--------------------------------------------------------------------------------
+E. CONVENCION DE LLAMADAS (System V AMD64) — como se pasan argumentos
+--------------------------------------------------------------------------------
+  - Primeros 6 argumentos enteros/punteros: %rdi, %rsi, %rdx, %rcx, %r8, %r9.
+  - Primeros 8 argumentos float64: %xmm0..%xmm7. Los contadores entero y float
+    son INDEPENDIENTES (un float no "gasta" un registro entero y viceversa).
+  - Valor de retorno: %rax (entero) o %xmm0 (float).
+  - Para printf (variadica): %al debe contener cuantos registros SSE se usan
+    (por eso se ve "movq $1,%rax" antes de printf con un float, "movq $0,%rax"
+    con solo enteros/strings).
+  - Alineacion: la ABI exige %rsp multiplo de 16 en cada "call". El prologo lo
+    mantiene (de ahi el redondeo a 16 en el tamano del frame). Romperlo hace
+    que printf/malloc revienten con SIGSEGV en spills SSE alineados.
+
+  emitirArgumentos evalua cada argumento, lo apila, y AL FINAL desapila en
+  orden inverso hacia los registros correctos. Evaluar-todo-y-luego-colocar
+  (en vez de colocar uno por uno) evita que evaluar el argumento 2 pise el
+  registro donde ya se puso el argumento 1.
+
+  LIMITE conocido: no hay "spill" a la pila; con mas de 6 args enteros u 8
+  float el codigo generado es incorrecto (ver seccion 7).
+
+--------------------------------------------------------------------------------
+F. STRUCTS, ARRAYS Y STRINGS EN MEMORIA
+--------------------------------------------------------------------------------
+Simplificacion central del backend: un struct o un array NO se guarda "por
+valor" en el frame; se guarda un PUNTERO (8 bytes) a un bloque reservado con
+calloc, donde cada campo o elemento ocupa 8 bytes. Ventajas: pasar un struct a
+una funcion, asignarlo o usarlo como receptor de metodo es siempre "mover un
+puntero de 8 bytes", sin casos por tamano. Costo: no hay copia por valor real
+(m2 = m copia el puntero, no los datos).
+
+  - Offset de un campo:  fieldIndex(campo) * 8. Ej: en "struct{X int;Y int}",
+    leer p.Y = leer 8(%rax) tras poner en %rax el puntero al struct.
+  - Elemento de array:   indice * 8, calculado con leaq (%rax,%rdi,8): base en
+    %rax, indice en %rdi, escala 8. Una sola instruccion hace base+indice*8.
+  - "zero value" real:   se usa calloc (no malloc) para que campos/elementos
+    omitidos queden en cero, como manda Go.
+  - String: puntero a un buffer de chars terminado en '\0' (estilo C). Indexar
+    un string lee un byte (movzbq). "+" entre strings llama al helper
+    str_concat (strlen + malloc + strcpy + strcat de la libc).
+
+--------------------------------------------------------------------------------
+G. LVALUES: valor vs. direccion (visit vs. emitirDireccion)
+--------------------------------------------------------------------------------
+Toda expresion tiene un "modo valor" (accept -> deja el VALOR en %rax) y solo
+los lvalues tienen ademas un "modo direccion" (emitirDireccion -> deja la
+DIRECCION en %rax). Se necesita la direccion en dos situaciones: el lado
+izquierdo de una asignacion (donde ESCRIBIR) y el operador '&' (tomar direccion).
+emitirDireccion maneja los cuatro lvalues del lenguaje:
+    variable simple   -> leaq offset(%rbp) / leaq nombre(%rip)
+    a[i]  (IndexExp)  -> base + indice*8 con leaq (%rax,%rdi,8)
+    p.c   (SelectorExp)-> puntero al struct + fieldIndex*8
+    *p    (DEREF)     -> el propio puntero ya ES la direccion destino
+Cualquier otra expresion no es asignable: emitirDireccion aborta (error interno).
+
+--------------------------------------------------------------------------------
+H. EJEMPLO COMPLETO PASO A PASO
+--------------------------------------------------------------------------------
+Fuente Go:
+    func suma(a int, b int) int {
+        return a*a + b
+    }
+
+Ensamblador generado (anotado):
+    .globl suma
+  suma:
+    pushq %rbp                ; -- prologo --
+    movq  %rsp, %rbp
+    subq  $N, %rsp            ; N = (2 params + 64) *8 alineado a 16
+    movq  %rdi, -8(%rbp)      ; guardar param a (1er reg entero) en local -8
+    movq  %rsi, -16(%rbp)     ; guardar param b (2do reg entero) en local -16
+    ; -- evaluar  a*a + b  (BinaryExp PLUS de [a*a] y [b]) --
+    ;   sub-expresion izquierda a*a (BinaryExp MUL de a y a):
+    movq  -8(%rbp), %rax      ;   %rax = a
+    pushq %rax                ;   apilar a
+    movq  -8(%rbp), %rax      ;   %rax = a  (segundo operando)
+    movq  %rax, %rcx          ;   %rcx = a
+    popq  %rax               ;   %rax = a  (recuperado)
+    imulq %rcx, %rax          ;   %rax = a*a
+    pushq %rax                ; apilar (a*a) como operando izq de la suma
+    ;   sub-expresion derecha b:
+    movq  -16(%rbp), %rax     ;   %rax = b
+    movq  %rax, %rcx          ;   %rcx = b
+    popq  %rax               ;   %rax = a*a
+    addq  %rcx, %rax          ; %rax = a*a + b   <- resultado del return
+    jmp   .end_suma           ; "return" salta al epilogo con rax ya cargado
+    movq  $0, %rax            ; (caida natural; el jmp de arriba lo esquiva)
+  .end_suma:
+    leave                     ; -- epilogo --
+    ret
+
+Este ejemplo condensa casi todo el modelo: acumulador en %rax, patron push/pop
+para el segundo operando, offsets negativos desde %rbp para locales, params
+copiados de la ABI al frame, y "return" como jmp a .end_<funcion>.
+
+................................................................................
 
 DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
 
@@ -1084,11 +1602,20 @@ DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
     Evalua la expresion (deja valor en %rax), suma/resta 1, almacena de vuelta.
 
   visit(Assigment*):
-    Para cada par (target, value):
-    - Si es operador compuesto: carga el valor actual del target a la pila,
-      evalua el valor nuevo, aplica la operacion, almacena.
-    - Si es ASSIGN simple: evalua el valor y almacena.
-    Llamada a emitirAlmacenar para escribir en la ubicacion correcta.
+    Recorre los pares (target, value) en paralelo. Para cada uno:
+    - ASSIGN simple ( = ):  value->accept (deja el valor en %rax/%xmm0) y luego
+      emitirAlmacenar en el target.
+    - Compuesto ( += -= *= /= ):  primero carga el valor ACTUAL del target y lo
+      apila, evalua el nuevo valor, aplica la operacion y almacena. En enteros:
+          target->accept ; pushq %rax ; value->accept ; movq %rax,%rcx ; popq %rax
+          addq/subq/imulq %rcx,%rax   (o cqto;idivq %rcx para /=)
+      En float usa la variante SSE con %xmm0/%xmm1 y addsd/subsd/mulsd/divsd.
+    El destino real lo resuelve emitirAlmacenar: si el target es una variable
+    simple escribe directo en offset(%rbp) o nombre(%rip); si es a[i]/p.campo/*p
+    preserva el valor calculado (push), obtiene la DIRECCION del target con
+    emitirDireccion (%r10) y hace "movq %rax,(%r10)" (o movsd para float). Este
+    ida-y-vuelta por %r10 es necesario porque calcular la direccion de a[i]
+    vuelve a usar %rax; guardar el valor primero evita perderlo.
 
   visit(ReturnStmt*):
     Evalua la expresion de retorno (si la hay) dejandola en %rax o %xmm0.
@@ -1101,37 +1628,69 @@ DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
     "jmp currentContinueLabel"
 
   visit(IfStmt*):
-    Genera una etiqueta unica con labelcont.
-    Evalua la condicion; compara con 0; je a else_N.
-    Emite cuerpo_if; jmp a endif_N.
-    Emite etiqueta else_N: ; cuerpo_else o if_anidado.
-    Emite etiqueta endif_N:.
+    Toma un numero unico N de labelcont++ (para no chocar etiquetas entre ifs).
+    Estructura emitida (la condicion deja 0/1 en %rax; cmpq $0 + je salta al
+    else cuando la condicion es falsa):
+        <codigo de la condicion>        ; %rax = 0 (false) o !=0 (true)
+        cmpq $0, %rax
+        je   else_N                     ; si es falsa, saltar al else
+        <cuerpo_if>
+        jmp  endif_N                    ; saltar el else tras ejecutar el if
+      else_N:
+        <cuerpo_else  o  if_anidado>    ; "else {}" o cadena "else if"
+      endif_N:
+    Las cadenas "if..else if..else" funcionan porque if_anidado es otro IfStmt
+    (ver notas de nodos): en la rama else_N se llama recursivamente a su visit,
+    que genera su propio par else_M/endif_M anidado.
 
   visit(SwitchStmt*):
-    1. Evalua la expresion del switch; guarda en %r10.
-    2. Primer pase: para cada case, evalua cada expresion de la lista y emite
-       cmpq/je a la etiqueta del case. El default acumula por separado.
-    3. Si hay default, emite jmp default_N; si no, jmp endswitch_N.
-    4. Segundo pase: emite el codigo de cada clause con su etiqueta; al final
-       de cada clause emite jmp endswitch_N (break implicito de Go).
-    5. Emite etiqueta endswitch_N:.
+    Compila un switch como una tabla de comparaciones (no como jump-table). Usa
+    DOS pasadas sobre los cases: la primera decide A DONDE saltar, la segunda
+    emite los cuerpos. Guarda el valor del switch en %r10 para no perderlo
+    mientras se evalua cada expresion de case en %rax.
+        <expr del switch>               ; o "movq $1,%rax" si es switch sin tag
+        movq %rax, %r10                 ; %r10 = valor a comparar (persistente)
+      ; -- pasada 1: dispatch --
+        <expr caso0> ; cmpq %rax,%r10 ; je case_N_0   (una por cada expr del case)
+        <expr caso1> ; cmpq %rax,%r10 ; je case_N_1
+        jmp default_N   (o jmp endswitch_N si no hay default)
+      ; -- pasada 2: cuerpos --
+      case_N_0: <stmts> ; jmp endswitch_N     ; el "break" implicito de Go: al
+      case_N_1: <stmts> ; jmp endswitch_N     ; terminar un case NO cae al
+      default_N:<stmts> ; jmp endswitch_N     ; siguiente (a diferencia de C)
+      endswitch_N:
+    currentBreakLabel se apunta a endswitch_N durante el switch, de modo que un
+    "break" explicito dentro de un case tambien salta a endswitch_N. Un switch
+    sin expresion ("switch { case cond: }") arranca con %r10=1 y cada case
+    compara contra 1, equivalente a evaluar condiciones booleanas en orden.
 
   visit(ForStmt*):
-    Con ForClause (for init; cond; post):
-      - Emite el init (asignacion1).
-      - Etiqueta for_N:.
-      - Evalua condicion; je a endfor_N.
-      - Emite el bloque.
-      - Etiqueta forpost_N: (target de continue).
-      - Emite el post (inc_dec_stmt o asignacion2).
-      - jmp for_N.
-      - Etiqueta endfor_N:.
-    Sin ForClause (while):
-      - Etiqueta for_N: (target de continue tambien).
-      - Evalua condicion (si hay); je a endfor_N.
-      - Emite el bloque.
-      - jmp for_N.
-      - Etiqueta endfor_N:.
+    GenCode usa TRES etiquetas por bucle: for_N (tope/reevaluacion de la
+    condicion), forpost_N (paso post, destino de "continue") y endfor_N (salida,
+    destino de "break"). Antes de emitir, guarda y restaura currentBreakLabel /
+    currentContinueLabel (para soportar bucles anidados: cada nivel restaura los
+    labels del nivel exterior al terminar).
+
+    Con ForClause  (for init; cond; post { ... }):
+        <init (asignacion1)>            ; ej. i := 0
+      for_N:
+        <cond> ; cmpq $0,%rax ; je endfor_N   ; si la condicion es falsa, salir
+        <bloque>
+      forpost_N:                        ; "continue" salta AQUI (no al tope)...
+        <post (i++ o i+=k)>             ; ...para que el post SI se ejecute
+        jmp for_N
+      endfor_N:
+      La razon de que "continue" apunte a forpost_N y no a for_N es justamente
+      que el paso de incremento debe correr en cada iteracion, incluso tras un
+      continue; de lo contrario un "for i:=0; i<n; i++ { if.. continue }"
+      no avanzaria i y colgaria.
+
+    Sin ForClause  (for cond { ... }  =  while, o  for { }  = infinito):
+      for_N:                            ; aqui "continue" salta directo (no hay post)
+        <cond (si existe)> ; cmpq $0,%rax ; je endfor_N
+        <bloque>
+        jmp for_N
+      endfor_N:
 
   visit(BasicLitExp*):
     - INT_LIT / RUNE_LIT: movq $valor, %rax
@@ -1158,31 +1717,94 @@ DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
     - NEG_OP entero: negq %rax
     - NOT_OP: cmpq $0 / sete %al / movzbq
 
-  visit(BinaryExp*):
-    - AND_OP / OR_OP: evalua ambos lados, andq/orq %rcx, %rax
-    - Si alguno es FLOAT64: constant folding si posible; sino emite con SSE
-      (addsd, subsd, mulsd, divsd para aritmetica; comisd + setCC para comparacion)
-    - Si ambos son STRING y op==PLUS: concatenacion con str_concat
-    - Enteros: constant folding si posible; sino push izq, eval der, pop en %rax:
-      addq, subq, imulq, cqto+idivq, cqto+idivq+movq %rdx,%rax (para MOD)
-      Para comparacion: cmpq + setCC + movzbq
-      Para POW_OP: loop imulq con contador en %rcx
+  visit(BinaryExp*):  [el visit mas rico en logica x86; se ramifica en 4 casos]
 
-  visit(CompositeLitExp*):
-    1. calloc(slots, 8) -> %rax (buffer inicializado a cero)
-    2. pushq %rax (conservar puntero)
-    3. Para cada elemento: evalua el valor; movq (%rsp), %r10 (peek al puntero);
-       almacena en offset correcto del struct/array (idxCampo*8 o i*8)
-    4. popq %rax (resultado = puntero al struct/array)
+    CASO 1 — Logicos AND_OP / OR_OP:
+      Evalua izq, lo apila, evalua der en %rcx, desapila izq en %rax y emite
+      "andq %rcx,%rax" u "orq %rcx,%rax". Como los bools son 0/1, el AND/OR bit
+      a bit coincide con el logico. (Nota: NO hay corto-circuito; ambos lados se
+      evaluan siempre. Es una simplificacion frente a Go real.)
 
-  visit(SelectorExp*):
-    Evalua la expresion base (deja puntero al struct en %rax).
-    Calcula el offset del campo (fieldIndex * 8).
-    movq/movsd offset(%rax), %rax/%xmm0
+    CASO 2 — Ambos STRING con '+':  concatenacion.
+      Evalua izq -> pushq; evalua der -> %rsi; popq %rdi (izq). Con los dos
+      punteros en %rdi/%rsi (ABI) hace "call str_concat", que devuelve en %rax
+      el puntero al buffer nuevo. Marca necesitaConcatString=true para que el
+      helper se emita una sola vez al final del programa.
 
-  visit(IndexExp*):
-    Para STRING: evalua cadena y indice; addq %rdi, %rax; movzbq (%rax), %rax
-    Para ARRAY: llama emitirDireccion(index_exp); movq (%rax), %rax
+    CASO 3 — Alguno es FLOAT64:  aritmetica/comparacion SSE.
+      Primero intenta plegado de constantes float (tryConstFoldFloat): si todo
+      el sub-arbol es constante, emite el resultado ya calculado como un
+      ".double" en .data y lo carga con movsd. Si no:
+        emitirValorFloat(izq) -> %xmm0  (con cvtsi2sdq si izq era int)
+        subq $8,%rsp / movsd %xmm0,(%rsp)     ; apilar izq en la pila (8 bytes)
+        emitirValorFloat(der) -> %xmm0
+        movsd %xmm0,%xmm1 / movsd (%rsp),%xmm0 / addq $8,%rsp  ; der->xmm1, izq->xmm0
+      Con izq en %xmm0 y der en %xmm1:
+        aritmetica:  addsd/subsd/mulsd/divsd %xmm1,%xmm0  -> resultado FLOAT64
+        comparacion: comisd %xmm1,%xmm0 ; movq $0,%rax ; setCC %al ; movzbq %al,%rax
+                     Aqui setCC usa condiciones SIN signo (seta/setb/setae/setbe/
+                     sete/setne) porque comisd deja los flags al estilo unsigned.
+                     Resultado BOOL en %rax.
+
+    CASO 4 — Enteros (int/bool/pointer):
+      Primero intenta plegado de constantes int (tryConstFoldInt): si es
+      constante, emite directamente "movq $<resultado>,%rax" (cero instrucciones
+      de calculo en runtime). Si no, aplica el patron push/pop de la seccion B:
+        left->accept ; pushq %rax ; right->accept ; movq %rax,%rcx ; popq %rax
+      y segun el operador (izq en %rax, der en %rcx):
+        PLUS_OP:  addq  %rcx,%rax
+        MINUS_OP: subq  %rcx,%rax
+        MUL_OP:   imulq %rcx,%rax
+        DIV_OP:   cqto ; idivq %rcx           ; cociente queda en %rax
+        MOD_OP:   cqto ; idivq %rcx ; movq %rdx,%rax  ; resto (rdx) -> rax
+        Comparaciones (== != < > <= >=):
+                  cmpq %rcx,%rax ; movq $0,%rax ; setCC %al ; movzbq %al,%rax
+                  con setCC CON signo: sete/setne/setl/setg/setle/setge. -> BOOL
+        POW_OP (a^b, extension no estandar de Go): bucle
+                  movq $1,%rdx                 ; acumulador = 1
+              pow_loop_N: cmpq $0,%rcx ; jle pow_end_N
+                  imulq %rax,%rdx ; decq %rcx ; jmp pow_loop_N
+              pow_end_N: movq %rdx,%rax        ; resultado en %rax
+                  (exponenciacion por multiplicaciones repetidas, b veces.)
+
+      Detalle importante de la DIVISION: idivq divide el par de 128 bits
+      %rdx:%rax entre el operando. Por eso SIEMPRE precede un "cqto", que
+      extiende el signo de %rax a %rdx (si se dividiera con %rdx sucio, el
+      resultado seria erroneo o dispararia una excepcion). El cociente termina
+      en %rax y el resto en %rdx: "/" toma %rax, "%" copia %rdx a %rax.
+
+  visit(CompositeLitExp*):  crea un struct/array en memoria y devuelve su puntero.
+    1. slots = fieldCount (struct) o arrayLength (array). Reserva el buffer:
+         movq $slots,%rdi ; movq $8,%rsi ; call calloc@PLT   ; %rax = puntero base
+       calloc (no malloc) para que los campos/elementos OMITIDOS queden en el
+       "zero value" de Go (cero), no en basura.
+    2. pushq %rax  ; conservar el puntero base mientras se evaluan los elementos
+       (evaluar un elemento puede usar %rax libremente).
+    3. Por cada elemento: se calcula su indice de campo (por clave con
+       fieldIndex, o por posicion), se evalua su valor, y se escribe:
+         movq (%rsp),%r10                 ; "peek": recuperar el puntero base sin desapilar
+         movq %rax,(idx*8)(%r10)          ; escribir el valor en su ranura
+         (o movsd %xmm0,(idx*8)(%r10) si el campo es float64)
+    4. popq %rax  ; el resultado de la expresion es el puntero al bloque creado.
+
+  visit(SelectorExp*):  leer p.campo.
+    Evalua la base (deja en %rax el PUNTERO al struct; recordar que structs son
+    punteros uniformes, y si la base es *Point tambien es un puntero, asi que no
+    hay que dereferenciar distinto). Calcula desplazamiento = fieldIndex*8 y lee:
+         movq  desplazamiento(%rax), %rax     ; campo entero/puntero
+         movsd desplazamiento(%rax), %xmm0    ; campo float64
+    (El campo 0 usa desplazamiento 0.)
+
+  visit(IndexExp*):  leer a[i].
+    STRING (indexar un byte):
+         base->accept ; pushq %rax ; indice->accept ; movq %rax,%rdi ; popq %rax
+         addq %rdi,%rax ; movzbq (%rax),%rax   ; %rax = byte en la posicion i (0..255)
+       (los chars son 1 byte y contiguos, por eso la escala es 1 y se usa movzbq.)
+    ARRAY:
+         emitirDireccion(index_exp)            ; %rax = &a[i] = base + i*8 (leaq escala 8)
+         movq (%rax),%rax   (o  movsd (%rax),%xmm0  si el elemento es float64)
+       Aqui la escala es 8 (no 1) porque cada elemento del array ocupa un slot
+       de 8 bytes, a diferencia de los bytes de un string.
 
   visit(SliceExp*):
     Extension simplificada: evalua la expresion base y la devuelve tal cual
@@ -1193,14 +1815,44 @@ DESCRIPCION DETALLADA DE CADA visit() Y FUNCION AUXILIAR:
     en tiempo de ejecucion; simplificacion de alcance.)
 
   visit(ArgumentsExp*):
-    Tres casos:
-    1. Conversion T(x): eval argumento + cvtsi2sdq/cvttsd2siq si hace falta
-    2. print/println: para cada argumento, lo evalua y llama emitirPrintDeTipo.
-       println agrega una llamada extra a printf con nl_fmt.
-    3. Funcion normal: emitirArgumentos (coloca args en registros ABI) + call nombre
-    4. Metodo p.M(args): evalua el receptor (puntero al struct) en %rax;
-       lo empuja; emitirArgumentos con offsetInt=1 (deja %rdi libre para receptor);
-       popq %rdi; call TipoBase_M
+    Inspecciona de que subclase es 'funcion' (dynamic_cast) para distinguir 4
+    situaciones que comparten la misma sintaxis "algo(args)":
+
+    1. Conversion de tipo T(x)  (cuando 'funcion' nombra un tipo, ej. int/float64
+       o un tipo con nombre): evalua el argumento y emite la conversion real de
+       hardware si cambia de clase de registro:
+         int -> float64:  cvtsi2sdq %rax, %xmm0
+         float64 -> int:  cvttsd2siq %xmm0, %rax   (trunca hacia cero)
+       Si origen y destino comparten representacion (ambos enteros), es un no-op.
+
+    2. Builtins print / println: para cada argumento, lo evalua y llama
+       emitirPrintDeTipo, que elige el formato de printf segun el tipo del valor
+       ya en %rax/%xmm0:
+         FLOAT64 -> leaq print_fmt_f(%rip),%rdi ; movq $1,%rax ; call printf@PLT
+                    (el "movq $1,%rax" avisa a printf que hay 1 registro SSE)
+         STRING  -> movq %rax,%rsi ; leaq print_fmt_s(%rip),%rdi ; movq $0,%rax ; call printf
+         resto   -> movq %rax,%rsi ; leaq print_fmt_ld(%rip),%rdi ; movq $0,%rax ; call printf
+       println agrega al final una llamada extra a printf con nl_fmt ("\n").
+
+    3. Llamada a funcion normal f(args):
+         emitirArgumentos(args, offsetInt=0, tipos esperados de la firma)
+             -> evalua cada arg, lo apila, y los desapila en orden inverso hacia
+                %rdi,%rsi,... (enteros) y %xmm0,%xmm1,... (floats), aplicando
+                promocion int->float64 donde la firma lo pida.
+         call <nombre>
+       El valor de retorno queda en %rax (o %xmm0) segun la firma.
+
+    4. Llamada a metodo p.M(args)  ('funcion' es un SelectorExp sobre un struct):
+       El receptor viaja como PRIMER argumento implicito en %rdi. Por eso:
+         sel->expresion->accept  ; %rax = puntero al struct (receptor)
+         pushq %rax
+         emitirArgumentos(args, offsetInt=1, ...)  ; empieza en %rsi: deja %rdi libre
+         popq %rdi                                 ; %rdi = receptor
+         call <NombreTipoBase>_<M>                 ; ej. call Point_Move
+       offsetInt=1 es la pieza clave: reserva el primer registro entero (%rdi)
+       para el receptor y coloca los argumentos explicitos desde %rsi en
+       adelante, exactamente como los espera el metodo (que fue emitido con el
+       receptor como su primer parametro; ver visit(MethodDecl*)).
 
 ================================================================================
 5. PATRONES DE DISENO USADOS
