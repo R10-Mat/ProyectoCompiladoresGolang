@@ -1,6 +1,20 @@
+type Punto struct {
+    x int;
+    y int;
+};
+
 func main() {
-    var a string = "hello";
-    var b string = " world";
-    var c string = a + b;
-    println(c);
+    var p Punto;
+    var ptr *Punto;
+    var i int;
+
+    p.x = 0;
+    p.y = 0;
+    
+    ptr = &p;
+
+    for i = 0; i < 500000; i++ {
+        ptr.x = ptr.x + i;
+        ptr.y = ptr.y - (i / 2);
+    };
 };

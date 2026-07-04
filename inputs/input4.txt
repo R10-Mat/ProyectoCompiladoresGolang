@@ -1,19 +1,26 @@
-type Point struct {
-    x int;
-    y int;
-};
-
-func (p *Point) Move(dx int, dy int) {
-    p.x = p.x + dx;
-    p.y = p.y + dy;
-};
-
 func main() {
-    var m Point;
-    m = Point{x: 1, y: 2};
-    var p *Point;
-    p = &m;
-    p.Move(10, 20);
-    println(m.x);
-    println(m.y);
+    var count int = 0;
+    var estado int;
+    var i int;
+
+    for i = 0; i < 1000000; i++ {
+        estado = i % 4;
+        
+        switch estado {
+            case 0:
+                count += 1;
+            case 1:
+                count += 2;
+            case 2:
+                count -= 1;
+            default:
+                count += 3;
+        };
+        
+        if count > 10000 {
+            count = 0;
+        } else {
+            count = count + 1;
+        };
+    };
 };

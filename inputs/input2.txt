@@ -1,9 +1,20 @@
 func main() {
-    var a float64 = 1.5;
-    var b float64 = 2.5;
-    var c float64 = a + b;
-    println(c);
-    if c > 3.0 {
-        println(1);
+    var arr [500]int;
+    var i int;
+    var j int;
+    var temp int;
+
+    for i = 0; i < 500; i++ {
+        arr[i] = 500 - i;
+    };
+
+    for i = 0; i < 500; i++ {
+        for j = 0; j < 499; j++ {
+            if arr[j] > arr[j + 1] {
+                temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            };
+        };
     };
 };

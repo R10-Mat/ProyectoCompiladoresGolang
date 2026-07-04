@@ -1,0 +1,26 @@
+func main() {
+    var A [100]int;
+    var B [100]int;
+    var C [100]int;
+    var i int;
+    var j int;
+    var k int;
+    var sum int;
+
+    for i = 0; i < 100; i++ {
+        A[i] = i;
+        B[i] = 100 - i;
+        C[i] = 0;
+    };
+
+    // Multiplicar dos matrices de 10x10 usando un arreglo de 100 posiciones
+    for i = 0; i < 10; i++ {
+        for j = 0; j < 10; j++ {
+            sum = 0;
+            for k = 0; k < 10; k++ {
+                sum += A[(i * 10) + k] * B[(k * 10) + j];
+            };
+            C[(i * 10) + j] = sum;
+        };
+    };
+};

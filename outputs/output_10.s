@@ -18,14 +18,22 @@ main:
   movq %rsp, %rbp
   subq $544, %rsp
   call __init_globals
-  movq $0, %rax
+  movq $3, %rdi
+  movq $8, %rsi
+  call calloc@PLT
   movq %rax, -8(%rbp)
+  movq $3, %rdi
+  movq $8, %rsi
+  call calloc@PLT
+  movq %rax, -16(%rbp)
+  movq $0, %rax
+  movq %rax, -32(%rbp)
   movq $0, %rax
   movq %rax, -24(%rbp)
 for_0:
   movq -24(%rbp), %rax
   pushq %rax
-  movq $1000000, %rax
+  movq $20000, %rax
   movq %rax, %rcx
   popq %rax
   cmpq %rcx, %rax
@@ -34,87 +42,84 @@ for_0:
   movzbq %al, %rax
   cmpq $0, %rax
   je endfor_0
+  movq $3, %rdi
+  movq $8, %rsi
+  call calloc@PLT
+  pushq %rax
+  movq -24(%rbp), %rax
+  movq (%rsp), %r10
+  movq %rax, 0(%r10)
   movq -24(%rbp), %rax
   pushq %rax
-  movq $4, %rax
-  movq %rax, %rcx
-  popq %rax
-  cqto
-  idivq %rcx
-  movq %rdx, %rax
-  movq %rax, -16(%rbp)
-  movq -16(%rbp), %rax
-  movq %rax, %r10
-  movq $0, %rax
-  cmpq %rax, %r10
-  je case_1_0
-  movq $1, %rax
-  cmpq %rax, %r10
-  je case_1_1
-  movq $2, %rax
-  cmpq %rax, %r10
-  je case_1_2
-  jmp default_1
-case_1_0:
-  movq -8(%rbp), %rax
-  pushq %rax
   movq $1, %rax
   movq %rax, %rcx
   popq %rax
   addq %rcx, %rax
-  movq %rax, -8(%rbp)
-  jmp endswitch_1
-case_1_1:
-  movq -8(%rbp), %rax
+  movq (%rsp), %r10
+  movq %rax, 8(%r10)
+  movq -24(%rbp), %rax
   pushq %rax
   movq $2, %rax
   movq %rax, %rcx
   popq %rax
   addq %rcx, %rax
-  movq %rax, -8(%rbp)
-  jmp endswitch_1
-case_1_2:
-  movq -8(%rbp), %rax
-  pushq %rax
-  movq $1, %rax
-  movq %rax, %rcx
+  movq (%rsp), %r10
+  movq %rax, 16(%r10)
   popq %rax
-  subq %rcx, %rax
   movq %rax, -8(%rbp)
-  jmp endswitch_1
-default_1:
-  movq -8(%rbp), %rax
+  movq $3, %rdi
+  movq $8, %rsi
+  call calloc@PLT
   pushq %rax
+  movq $2, %rax
+  movq (%rsp), %r10
+  movq %rax, 0(%r10)
   movq $3, %rax
+  movq (%rsp), %r10
+  movq %rax, 8(%r10)
+  movq $4, %rax
+  movq (%rsp), %r10
+  movq %rax, 16(%r10)
+  popq %rax
+  movq %rax, -16(%rbp)
+  movq -32(%rbp), %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  movq 0(%rax), %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  movq 0(%rax), %rax
+  movq %rax, %rcx
+  popq %rax
+  imulq %rcx, %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  movq 8(%rax), %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  movq 8(%rax), %rax
+  movq %rax, %rcx
+  popq %rax
+  imulq %rcx, %rax
   movq %rax, %rcx
   popq %rax
   addq %rcx, %rax
-  movq %rax, -8(%rbp)
-  jmp endswitch_1
-endswitch_1:
-  movq -8(%rbp), %rax
   pushq %rax
-  movq $10000, %rax
+  movq -8(%rbp), %rax
+  movq 16(%rax), %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  movq 16(%rax), %rax
   movq %rax, %rcx
   popq %rax
-  cmpq %rcx, %rax
-  movq $0, %rax
-  setg %al
-  movzbq %al, %rax
-  cmpq $0, %rax
-  je else_2
-  movq $0, %rax
-  movq %rax, -8(%rbp)
-  jmp endif_2
-else_2:
-  movq -8(%rbp), %rax
-  pushq %rax
-  movq $1, %rax
+  imulq %rcx, %rax
   movq %rax, %rcx
   popq %rax
   addq %rcx, %rax
-  movq %rax, -8(%rbp)
-endif_2:
+  movq %rax, %rcx
+  popq %rax
+  addq %rcx, %rax
+  movq %rax, -32(%rbp)
 forpost_0:
   movq -24(%rbp), %rax
   addq $1, %rax

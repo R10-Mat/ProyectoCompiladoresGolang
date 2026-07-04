@@ -18,59 +18,163 @@ main:
   movq %rsp, %rbp
   subq $544, %rsp
   call __init_globals
-.data
-flt_lit_0: .double 1.5
-.text
-  movsd flt_lit_0(%rip), %xmm0
-  movsd %xmm0, -8(%rbp)
-.data
-flt_lit_1: .double 2.5
-.text
-  movsd flt_lit_1(%rip), %xmm0
-  movsd %xmm0, -16(%rbp)
-  movsd -8(%rbp), %xmm0
-  subq $8, %rsp
-  movsd %xmm0, (%rsp)
-  movsd -16(%rbp), %xmm0
-  movsd %xmm0, %xmm1
-  movsd (%rsp), %xmm0
-  addq $8, %rsp
-  addsd %xmm1, %xmm0
-  movsd %xmm0, -24(%rbp)
-  movsd -24(%rbp), %xmm0
-  leaq print_fmt_f(%rip), %rdi
-  movq $1, %rax
-  call printf@PLT
-  leaq nl_fmt(%rip), %rdi
+  movq $500, %rdi
+  movq $8, %rsi
+  call calloc@PLT
+  movq %rax, -8(%rbp)
   movq $0, %rax
-  call printf@PLT
-  movsd -24(%rbp), %xmm0
-  subq $8, %rsp
-  movsd %xmm0, (%rsp)
-.data
-flt_lit_3: .double 3.0
-.text
-  movsd flt_lit_3(%rip), %xmm0
-  movsd %xmm0, %xmm1
-  movsd (%rsp), %xmm0
-  addq $8, %rsp
-  comisd %xmm1, %xmm0
+  movq %rax, -16(%rbp)
+for_0:
+  movq -16(%rbp), %rax
+  pushq %rax
+  movq $500, %rax
+  movq %rax, %rcx
+  popq %rax
+  cmpq %rcx, %rax
   movq $0, %rax
-  seta %al
+  setl %al
   movzbq %al, %rax
   cmpq $0, %rax
-  je else_2
+  je endfor_0
+  movq $500, %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  movq %rax, %rcx
+  popq %rax
+  subq %rcx, %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+forpost_0:
+  movq -16(%rbp), %rax
+  addq $1, %rax
+  movq %rax, -16(%rbp)
+  jmp for_0
+endfor_0:
+  movq $0, %rax
+  movq %rax, -16(%rbp)
+for_1:
+  movq -16(%rbp), %rax
+  pushq %rax
+  movq $500, %rax
+  movq %rax, %rcx
+  popq %rax
+  cmpq %rcx, %rax
+  movq $0, %rax
+  setl %al
+  movzbq %al, %rax
+  cmpq $0, %rax
+  je endfor_1
+  movq $0, %rax
+  movq %rax, -24(%rbp)
+for_2:
+  movq -24(%rbp), %rax
+  pushq %rax
+  movq $499, %rax
+  movq %rax, %rcx
+  popq %rax
+  cmpq %rcx, %rax
+  movq $0, %rax
+  setl %al
+  movzbq %al, %rax
+  cmpq $0, %rax
+  je endfor_2
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq (%rax), %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  pushq %rax
   movq $1, %rax
-  movq %rax, %rsi
-  leaq print_fmt_ld(%rip), %rdi
+  movq %rax, %rcx
+  popq %rax
+  addq %rcx, %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq (%rax), %rax
+  movq %rax, %rcx
+  popq %rax
+  cmpq %rcx, %rax
   movq $0, %rax
-  call printf@PLT
-  leaq nl_fmt(%rip), %rdi
-  movq $0, %rax
-  call printf@PLT
-  jmp endif_2
-else_2:
-endif_2:
+  setg %al
+  movzbq %al, %rax
+  cmpq $0, %rax
+  je else_3
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq (%rax), %rax
+  movq %rax, -32(%rbp)
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  pushq %rax
+  movq $1, %rax
+  movq %rax, %rcx
+  popq %rax
+  addq %rcx, %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq (%rax), %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+  movq -32(%rbp), %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  pushq %rax
+  movq $1, %rax
+  movq %rax, %rcx
+  popq %rax
+  addq %rcx, %rax
+  movq %rax, %rdi
+  popq %rax
+  leaq (%rax, %rdi, 8), %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+  jmp endif_3
+else_3:
+endif_3:
+forpost_2:
+  movq -24(%rbp), %rax
+  addq $1, %rax
+  movq %rax, -24(%rbp)
+  jmp for_2
+endfor_2:
+forpost_1:
+  movq -16(%rbp), %rax
+  addq $1, %rax
+  movq %rax, -16(%rbp)
+  jmp for_1
+endfor_1:
   movq $0, %rax
 .end_main:
   leave

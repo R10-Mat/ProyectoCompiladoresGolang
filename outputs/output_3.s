@@ -18,65 +18,78 @@ main:
   movq %rsp, %rbp
   subq $544, %rsp
   call __init_globals
-.data
-str_lit_0: .string "hello"
-.text
-  leaq str_lit_0(%rip), %rax
+  movq $2, %rdi
+  movq $8, %rsi
+  call calloc@PLT
   movq %rax, -8(%rbp)
-.data
-str_lit_1: .string " world"
-.text
-  leaq str_lit_1(%rip), %rax
-  movq %rax, -16(%rbp)
+  movq $0, %rax
+  pushq %rax
   movq -8(%rbp), %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+  movq $0, %rax
+  pushq %rax
+  movq -8(%rbp), %rax
+  addq $8, %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+  movq -8(%rbp), %rax
+  movq %rax, -16(%rbp)
+  movq $0, %rax
+  movq %rax, -24(%rbp)
+for_0:
+  movq -24(%rbp), %rax
+  pushq %rax
+  movq $500000, %rax
+  movq %rax, %rcx
+  popq %rax
+  cmpq %rcx, %rax
+  movq $0, %rax
+  setl %al
+  movzbq %al, %rax
+  cmpq $0, %rax
+  je endfor_0
+  movq -16(%rbp), %rax
+  movq 0(%rax), %rax
+  pushq %rax
+  movq -24(%rbp), %rax
+  movq %rax, %rcx
+  popq %rax
+  addq %rcx, %rax
   pushq %rax
   movq -16(%rbp), %rax
-  movq %rax, %rsi
-  popq %rdi
-  call str_concat
-  movq %rax, -24(%rbp)
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+  movq -16(%rbp), %rax
+  movq 8(%rax), %rax
+  pushq %rax
   movq -24(%rbp), %rax
-  movq %rax, %rsi
-  leaq print_fmt_s(%rip), %rdi
-  movq $0, %rax
-  call printf@PLT
-  leaq nl_fmt(%rip), %rdi
-  movq $0, %rax
-  call printf@PLT
+  pushq %rax
+  movq $2, %rax
+  movq %rax, %rcx
+  popq %rax
+  cqto
+  idivq %rcx
+  movq %rax, %rcx
+  popq %rax
+  subq %rcx, %rax
+  pushq %rax
+  movq -16(%rbp), %rax
+  addq $8, %rax
+  movq %rax, %r10
+  popq %rax
+  movq %rax, (%r10)
+forpost_0:
+  movq -24(%rbp), %rax
+  addq $1, %rax
+  movq %rax, -24(%rbp)
+  jmp for_0
+endfor_0:
   movq $0, %rax
 .end_main:
-  leave
-  ret
-
-.globl str_concat
-str_concat:
-  pushq %rbp
-  movq %rsp, %rbp
-  pushq %rbx
-  pushq %r12
-  pushq %r13
-  movq %rdi, %r12
-  movq %rsi, %r13
-  movq %r12, %rdi
-  call strlen@PLT
-  movq %rax, %rbx
-  movq %r13, %rdi
-  call strlen@PLT
-  addq %rbx, %rax
-  addq $1, %rax
-  movq %rax, %rdi
-  call malloc@PLT
-  movq %rax, %rbx
-  movq %rbx, %rdi
-  movq %r12, %rsi
-  call strcpy@PLT
-  movq %rbx, %rdi
-  movq %r13, %rsi
-  call strcat@PLT
-  movq %rbx, %rax
-  popq %r13
-  popq %r12
-  popq %rbx
   leave
   ret
 

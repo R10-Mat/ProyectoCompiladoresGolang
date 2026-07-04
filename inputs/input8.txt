@@ -1,0 +1,26 @@
+func collatz(n int) int {
+    var steps int = 0;
+    for n > 1 {
+        if n % 2 == 0 {
+            n = n / 2;
+        } else {
+            n = (3 * n) + 1;
+        };
+        steps++;
+    };
+    return steps;
+};
+
+func main() {
+    var maxSteps int = 0;
+    var currentSteps int;
+    var i int;
+
+    // Buscar el numeo con mas pasos de Collatz entre 1 y 500
+    for i = 1; i < 500; i++ {
+        currentSteps = collatz(i);
+        if currentSteps > maxSteps {
+            maxSteps = currentSteps;
+        };
+    };
+};
